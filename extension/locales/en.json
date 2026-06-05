@@ -47,7 +47,6 @@
     "cancelDownload": "Stop download",
     "record": "Tab recording",
     "stop": "Stop",
-    "fallback": "Start tab recording if the link cannot be downloaded",
     "shortcut": "Ctrl+Shift+Y - stop recording"
   },
   "badges": {

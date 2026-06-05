@@ -19,7 +19,6 @@ const elements = {
   cancelDownload: document.getElementById("cancelDownload"),
   record: document.getElementById("record"),
   stop: document.getElementById("stop"),
-  fallback: document.getElementById("fallback"),
   settingsToggle: document.getElementById("settingsToggle"),
   settingsPanel: document.getElementById("settingsPanel"),
   settingsClose: document.getElementById("settingsClose"),
@@ -64,16 +63,12 @@ chrome.runtime.onMessage.addListener(message => {
 
 async function init() {
   try {
-    const config = await chrome.storage.local.get({ autoRecordFallback: true, language: "ru" });
+    const config = await chrome.storage.local.get({ language: "ru" });
     currentLanguage = normalizeLanguage(config.language);
     messages = await loadMessages(currentLanguage);
     elements.language.value = currentLanguage;
     applyTranslations();
 
-    elements.fallback.checked = !!config.autoRecordFallback;
-    elements.fallback.addEventListener("change", () => {
-      chrome.storage.local.set({ autoRecordFallback: elements.fallback.checked });
-    });
     elements.language.addEventListener("change", changeLanguage);
 
     elements.arm.addEventListener("click", () => send("ARM"));

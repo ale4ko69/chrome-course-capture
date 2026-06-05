@@ -425,15 +425,6 @@ button:disabled {
   font-size: 13px;
 }
 
-.toggle {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  margin-top: 9px;
-  font-size: 12px;
-  color: #46556d;
-}
-
 .shortcut {
   margin-top: 7px;
   padding: 6px 9px;

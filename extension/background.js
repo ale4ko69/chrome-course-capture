@@ -31,7 +31,7 @@ const state = {
 };
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get({ autoRecordFallback: true, ...DEFAULT_SETTINGS }).then(values => {
+  chrome.storage.local.get(DEFAULT_SETTINGS).then(values => {
     chrome.storage.local.set(values);
   });
 });
@@ -349,7 +349,6 @@ function getTabState(tabId) {
       candidates: [],
       lastTitle: "",
       autoTimer: null,
-      autoRecordOnDownloadFail: false,
       recordingStartedAt: 0,
       recordingBytes: 0,
       playbackObserved: false,
@@ -893,7 +892,6 @@ async function downloadCandidate(tabId, candidate, reason) {
   tabState.downloadOutcome = "";
   tabState.downloadProgress = null;
   tabState.verifiedStatus = "";
-  tabState.autoRecordOnDownloadFail = reason === "auto" && tabState.playbackObserved;
   tabState.status = `Скачиваю через yt-dlp: ${candidate.label} с ${candidate.host || "найденного URL"}...`;
   tabState.error = "";
   notifyPopup(tabId);
@@ -919,13 +917,8 @@ async function downloadCandidate(tabId, candidate, reason) {
     tabState.downloading = false;
     tabState.downloadOutcome = "error";
     tabState.error = String(error && error.message ? error.message : error);
-    tabState.status = reason === "auto"
-      ? "yt-dlp не смог стартовать. Автоматически включаю запись вкладки..."
-      : "yt-dlp не смог скачать. Можно включить запись вкладки.";
+    tabState.status = "yt-dlp не смог скачать. Можно включить запись вкладки.";
     notifyPopup(tabId);
-    if (reason === "auto") {
-      await startRecordingIfEnabled(tabId);
-    }
     return { ok: false, error: tabState.error, state: publicTabState(tabId) };
   }
 }
@@ -1168,7 +1161,6 @@ async function handleNativeMessage(message) {
     tabState.downloadOutcome = "";
     tabState.downloadProgress = null;
     tabState.armed = false;
-    tabState.autoRecordOnDownloadFail = false;
     tabState.status = message.message || "Скачивание отменено.";
     notifyPopup(message.tabId);
     return;
@@ -1181,16 +1173,9 @@ async function handleNativeMessage(message) {
     if (message.ok) {
       tabState.downloadOutcome = "success";
       tabState.armed = false;
-      tabState.autoRecordOnDownloadFail = false;
     } else {
       tabState.downloadOutcome = "error";
       if (message.error) tabState.error = message.error;
-      if (tabState.autoRecordOnDownloadFail) {
-        tabState.status = "Скачать не удалось. Автоматически включаю запись вкладки...";
-        notifyPopup(message.tabId);
-        await startRecordingIfEnabled(message.tabId);
-        return;
-      }
     }
   }
 
@@ -1215,28 +1200,9 @@ async function cancelDownload(tabId) {
   tabState.cancellingDownload = false;
   tabState.downloadOutcome = "";
   tabState.armed = false;
-  tabState.autoRecordOnDownloadFail = false;
   tabState.status = response.message || "Скачивание остановлено.";
   notifyPopup(tabId);
   return { tabId, response };
-}
-
-async function startRecordingIfEnabled(tabId) {
-  const config = await chrome.storage.local.get({ autoRecordFallback: true });
-  if (!config.autoRecordFallback) return false;
-  const tabState = getTabState(tabId);
-  tabState.autoRecordOnDownloadFail = false;
-  try {
-    await startRecording(tabId);
-    return true;
-  } catch (error) {
-    tabState.busy = false;
-    tabState.recording = false;
-    tabState.error = String(error && error.message ? error.message : error);
-    tabState.status = `Не смог автоматически включить запись: ${tabState.error}`;
-    notifyPopup(tabId);
-    return false;
-  }
 }
 
 function enrichCandidate(candidate) {

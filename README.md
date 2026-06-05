@@ -70,20 +70,71 @@ C:\yt-dlp\ffmpeg\ffmpeg-7.1-essentials_build\bin
 
 The paths can be edited in the extension popup settings.
 
+## Install External Dependencies
+
+`install-native-host.ps1` does not install Node.js, yt-dlp, or ffmpeg. It only registers the already downloaded native host with Chrome.
+
+Install these tools separately first:
+
+1. Install Node.js for Windows:
+
+   - Download page: <https://nodejs.org/en/download>
+   - Use the Windows installer.
+   - The bundled native host launcher expects Node.js at:
+
+   ```text
+   C:\Program Files\nodejs\node.exe
+   ```
+
+   If Node.js is installed elsewhere, edit:
+
+   ```text
+   native-host\native-host.cmd
+   ```
+
+2. Download yt-dlp:
+
+   - Latest release page: <https://github.com/yt-dlp/yt-dlp/releases/latest>
+   - Download the Windows executable named `yt-dlp.exe`.
+   - Put it here by default:
+
+   ```text
+   C:\yt-dlp\yt-dlp.exe
+   ```
+
+   You can update it later with:
+
+   ```powershell
+   C:\yt-dlp\yt-dlp.exe -U
+   ```
+
+3. Download ffmpeg for Windows:
+
+   - FFmpeg download page: <https://ffmpeg.org/download.html>
+   - Windows builds commonly used with yt-dlp: <https://www.gyan.dev/ffmpeg/builds/>
+   - Put the extracted `bin` folder here by default:
+
+   ```text
+   C:\yt-dlp\ffmpeg\ffmpeg-7.1-essentials_build\bin
+   ```
+
+The default paths are only defaults. You can change `yt-dlp.exe`, `ffmpeg bin`, and the output folder from the extension popup settings.
+
 ## Installation
 
-1. Clone or download this repository.
-2. Open Chrome and go to:
+1. Install the external dependencies above.
+2. Clone or download this repository.
+3. Open Chrome and go to:
 
 ```text
 chrome://extensions
 ```
 
-3. Enable `Developer mode`.
-4. Click `Load unpacked`.
-5. Select the repository `extension` folder.
-6. Copy the extension ID shown by Chrome.
-7. Register the native host from PowerShell:
+4. Enable `Developer mode`.
+5. Click `Load unpacked`.
+6. Select the repository `extension` folder.
+7. Copy the extension ID shown by Chrome.
+8. Register the native host from PowerShell:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\install-native-host.ps1 -ExtensionId YOUR_EXTENSION_ID

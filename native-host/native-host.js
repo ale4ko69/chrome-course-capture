@@ -592,6 +592,13 @@ async function runYtDlpVerify(message, settings) {
   const first = await runYtDlpVerifyOnce(message, settings, "extension-cookies");
   if (!first.ok && isYouTubeUrl(message.url) && isRequestedFormatUnavailable(first.error || "")) {
     appendLog("VERIFY_RETRY YouTube without extension cookies because requested format was unavailable");
+    writeMessage({
+      requestId: message.requestId,
+      tabId: message.tabId,
+      ok: true,
+      event: "verify_retry",
+      message: "Вторая попытка проверки..."
+    });
     return runYtDlpVerifyOnce({ ...message, cookies: [], pageUrl: "" }, settings, "no-cookies");
   }
   return first;

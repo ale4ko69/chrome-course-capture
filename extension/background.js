@@ -1230,6 +1230,12 @@ async function handleNativeMessage(message) {
     tabState.status = translatedStatus;
   }
 
+  if (message.event === "verify_retry") {
+    tabState.verifyingSource = true;
+    notifyPopup(message.tabId);
+    return;
+  }
+
   if (message.event === "progress") {
     if (message.progress) {
       tabState.downloadProgress = message.progress;
@@ -1529,6 +1535,7 @@ function formatApproxSize(bytes) {
 function translateNativeStatus(message) {
   if (!message) return "";
   if (message.event === "started") return "yt-dlp запущен. Скачивание началось.";
+  if (message.event === "verify_retry") return "Вторая попытка проверки...";
   if (message.event === "done" && message.ok) return "yt-dlp закончил. Файл лежит в папке downloads.";
   if (message.event === "done" && !message.ok) return `yt-dlp завершился с ошибкой: ${message.error || "unknown"}`;
   if (message.event === "progress" && message.message) {
@@ -1555,7 +1562,7 @@ function sendNative(payload, timeoutMs = 30000) {
     }
 
     function onMessage(message) {
-      if (!message || message.requestId !== requestId || message.event === "progress") return;
+      if (!message || message.requestId !== requestId || message.event === "progress" || message.event === "verify_retry") return;
       cleanup();
       if (message.ok) resolve(message);
       else reject(new Error(message.error || "Native host failed"));

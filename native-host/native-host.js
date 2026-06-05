@@ -374,7 +374,16 @@ function remuxRecording(recording) {
 function buildArgs(message, cookieFile, outputBaseName, settings) {
   const outputTemplate = path.join(settings.downloadDir, `${outputBaseName}.%(ext)s`);
   const args = [
-    "--ignore-config",
+    "--ignore-config"
+  ];
+
+  if (cookieFile) {
+    args.push("--cookies", cookieFile);
+  } else if (!Array.isArray(message.cookies) || !message.cookies.length) {
+    args.push("--cookies-from-browser", "chrome");
+  }
+
+  args.push(
     "--ffmpeg-location", settings.ffmpegDir,
     "--merge-output-format", settings.mergeFormat,
     "--restrict-filenames",
@@ -384,13 +393,7 @@ function buildArgs(message, cookieFile, outputBaseName, settings) {
     "--socket-timeout", String(settings.socketTimeout),
     "--newline",
     "-o", outputTemplate
-  ];
-
-  if (cookieFile) {
-    args.splice(2, 0, "--cookies", cookieFile);
-  } else if (!Array.isArray(message.cookies) || !message.cookies.length) {
-    args.splice(2, 0, "--cookies-from-browser", "chrome");
-  }
+  );
 
   if (message.pageUrl) {
     args.push("--referer", message.pageUrl);
@@ -552,7 +555,7 @@ function runYtDlp(message, options) {
       const key = String(message.tabId);
       const wasCancelled = cancelledDownloads.has(key);
       if (wasCancelled) cancelledDownloads.delete(key);
-      const ok = code === 0 && !killedBySizeGuard;
+      const ok = wasCancelled || (code === 0 && !killedBySizeGuard);
       if (downloadsByTab.get(key) === child) {
         downloadsByTab.delete(key);
       }
@@ -583,7 +586,7 @@ function runYtDlp(message, options) {
         writeDone(message, ok, code, output);
       }
       cleanupCookieFile(cookieFile);
-      resolve({ ok, code, output });
+      resolve({ ok, code, output, cancelled: wasCancelled });
     });
   });
 }

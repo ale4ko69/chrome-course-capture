@@ -1,0 +1,11 @@
+downloads/
+tmp/
+native-host.log
+*.log
+*.part
+*.ytdl
+*.tmp
+*.temp
+*.remuxing.webm
+*.raw.webm
+CODEX_HANDOFF.md

@@ -1,0 +1,538 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 390px;
+  height: 520px;
+  margin: 0;
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: #1d2430;
+  background: #f7f8fb;
+  position: relative;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 12px 14px;
+  height: 520px;
+  overflow: hidden;
+}
+
+header {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+h2 {
+  margin: 0 0 6px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #657184;
+  letter-spacing: 0;
+}
+
+.sources-note {
+  flex: 0 0 auto;
+  margin: 0 0 7px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #657184;
+}
+
+.sources-panel {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 92px;
+  max-height: 210px;
+  margin-top: 10px;
+  margin-bottom: 2px;
+  padding: 8px;
+  border: 1px solid #d8deea;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+#badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 86px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e4e9f2;
+  color: #364358;
+  text-align: center;
+  font-size: 12px;
+}
+
+#badgeIcon {
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1;
+}
+
+#badge.waiting {
+  background: #e4e9f2;
+  color: #364358;
+}
+
+#badge.armed {
+  background: #fff1cf;
+  color: #765711;
+}
+
+#badge.downloading {
+  background: #dceaff;
+  color: #16417e;
+}
+
+#badge.recording {
+  background: #ffe0e0;
+  color: #821d1d;
+}
+
+#badge.error {
+  background: #ffe0e0;
+  color: #821d1d;
+}
+
+.icon-button {
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.settings,
+.helper {
+  position: fixed;
+  inset: 50px 10px 10px;
+  z-index: 10;
+  margin-top: 0;
+  padding: 10px;
+  border: 1px solid #cfd8e8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(29, 36, 48, 0.18);
+  overflow: auto;
+}
+
+.panel-head,
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panel-head strong {
+  font-size: 13px;
+}
+
+.helper h3 {
+  margin: 13px 0 6px;
+  font-size: 12px;
+  color: #364358;
+}
+
+.helper h3:first-of-type {
+  margin-top: 10px;
+}
+
+.helper-list,
+.helper-steps {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.38;
+  color: #39465c;
+}
+
+.helper-list li,
+.helper-steps li {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.helper code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  word-break: break-all;
+  color: #1d2430;
+  background: #eef1f6;
+  border-radius: 4px;
+  padding: 1px 3px;
+}
+
+.settings label {
+  display: block;
+  margin-top: 8px;
+}
+
+.settings label span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: #657184;
+}
+
+.settings input,
+.settings select {
+  width: 100%;
+  height: 30px;
+  padding: 4px 7px;
+  border: 1px solid #c9d2e2;
+  border-radius: 6px;
+  font: 12px "Segoe UI", Arial, sans-serif;
+  color: #1d2430;
+  background: #f9fafc;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.settings-actions {
+  margin-top: 10px;
+}
+
+.settings-actions button {
+  width: auto;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+#settingsClose {
+  flex: 0 0 auto;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+#settingsSave {
+  background: #245eb8;
+  border-color: #245eb8;
+  color: #ffffff;
+}
+
+#status,
+#error {
+  margin-top: 10px;
+  padding: 8px 10px 11px;
+  border: 1px solid #d8deea;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+#status {
+  min-height: 46px;
+  max-height: 64px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.activity {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #d8deea;
+  background: #ffffff;
+}
+
+.activity strong,
+.activity span {
+  display: block;
+}
+
+.activity strong {
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.activity span {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.activity.recording {
+  border-color: #b52828;
+  background: #fff1f1;
+  color: #7f1717;
+}
+
+.activity.downloading {
+  border-color: #245eb8;
+  background: #edf4ff;
+  color: #173f80;
+}
+
+.activity.armed {
+  border-color: #b78b2c;
+  background: #fff8e8;
+  color: #72520d;
+}
+
+.activity.idle {
+  color: #46556d;
+}
+
+#error {
+  border-color: #e5b7b7;
+  color: #8b1e1e;
+  background: #fff6f6;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.capture-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.source-picker {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr 82px 70px 34px;
+  gap: 7px;
+  min-width: 0;
+}
+
+#sourceSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 4px 32px 4px 7px;
+  border: 1px solid #c9d2e2;
+  border-radius: 7px;
+  background-color: #ffffff;
+  background-image: linear-gradient(45deg, transparent 50%, #657184 50%), linear-gradient(135deg, #657184 50%, transparent 50%);
+  background-position: calc(100% - 15px) 13px, calc(100% - 10px) 13px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: #1d2430;
+  font: 12px "Segoe UI", Arial, sans-serif;
+}
+
+button {
+  height: 32px;
+  border: 1px solid #c9d2e2;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #1d2430;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #eef3fb;
+}
+
+button:disabled {
+  color: #9aa5b5;
+  background: #eef1f6;
+  cursor: default;
+}
+
+#arm,
+#scan {
+  background: #245eb8;
+  border-color: #245eb8;
+  color: #ffffff;
+}
+
+#scan {
+  background: #ffffff;
+  color: #245eb8;
+}
+
+#verifySource {
+  background: #ffffff;
+  color: #245eb8;
+}
+
+#stop {
+  background: #8f2f2f;
+  border-color: #8f2f2f;
+  color: #ffffff;
+}
+
+#cancelDownload {
+  background: #8f2f2f;
+  border-color: #8f2f2f;
+  color: #ffffff;
+}
+
+#cancelDownload.icon-button {
+  width: 34px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.toggle {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 9px;
+  font-size: 12px;
+  color: #46556d;
+}
+
+.shortcut {
+  margin-top: 7px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #eef1f6;
+  color: #46556d;
+  font-size: 12px;
+  text-align: center;
+}
+
+ol {
+  margin: 0;
+  padding-left: 0;
+  min-height: 0;
+  flex: 0 1 auto;
+  max-height: 150px;
+  overflow: auto;
+  font-size: 12px;
+  list-style: none;
+}
+
+li {
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid #d8deea;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.source {
+  display: block;
+  margin-top: 4px;
+  color: #6d788b;
+}
+
+.source-check {
+  margin-top: 7px;
+  padding: 6px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.source-check.ok {
+  border: 1px solid #b8ddc7;
+  background: #effaf3;
+  color: #14613a;
+}
+
+.source-check.bad {
+  border: 1px solid #e5b7b7;
+  background: #fff6f6;
+  color: #8b1e1e;
+}
+
+.candidate-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.candidate-actions button {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.download-candidate {
+  background: #245eb8;
+  border-color: #245eb8;
+  color: #ffffff;
+}
+
+.candidate-title {
+  display: block;
+  font-weight: 650;
+  color: #1d2430;
+}
+
+.candidate-detail {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: #657184;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-title.file {
+  color: #14613a;
+}
+
+.candidate-title.hls,
+.candidate-title.dash,
+.candidate-title.playback,
+.candidate-title.embed {
+  color: #245eb8;
+}
+
+.candidate-title.segment {
+  color: #7c561a;
+}
+
+.url {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 28px;
+  margin-top: 5px;
+  padding: 5px 7px;
+  text-align: left;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  font-weight: 400;
+  word-break: break-all;
+  color: #39465c;
+  background: #f7f8fb;
+}

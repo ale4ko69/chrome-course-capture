@@ -202,10 +202,12 @@ async function send(type, extra = {}) {
     const timeoutMs = commandTimeoutMs(type);
     const response = await sendWithTimeout({ type, ...extra }, timeoutMs);
     if (response && response.state) render(response.state);
-    if (response && response.error) showError(response.error);
+    if (response && response.error && !shouldSuppressCommandError(type, response.state || lastState)) {
+      showError(response.error);
+    }
     return response || {};
   } catch (error) {
-    if (type === "VERIFY_CANDIDATE" && lastState && lastState.verifyingSource) {
+    if (shouldSuppressCommandError(type, lastState)) {
       return {};
     }
     showError(t("errors.noExtensionResponse", { error: error.message }));
@@ -218,6 +220,15 @@ function commandTimeoutMs(type) {
   if (type === "VERIFY_CANDIDATE") return 90000;
   if (type === "DOWNLOAD_CANDIDATE" || type === "DOWNLOAD_BEST") return 30000;
   return 5000;
+}
+
+function shouldSuppressCommandError(type, state) {
+  if (!state) return false;
+  if (type === "VERIFY_CANDIDATE") return !!state.verifyingSource;
+  if (type === "DOWNLOAD_CANDIDATE" || type === "DOWNLOAD_BEST") {
+    return !!(state.downloading || state.busy || state.downloadProgress);
+  }
+  return false;
 }
 
 async function stopRecording() {

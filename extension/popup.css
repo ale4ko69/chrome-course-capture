@@ -329,7 +329,7 @@ h2 {
 .source-picker {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: 1fr 82px 70px 34px;
+  grid-template-columns: minmax(0, 1fr) 76px 86px 34px;
   gap: 7px;
   min-width: 0;
 }
@@ -354,11 +354,18 @@ h2 {
 
 button {
   height: 32px;
+  min-width: 0;
+  padding: 0 8px;
   border: 1px solid #c9d2e2;
   border-radius: 7px;
   background: #ffffff;
   color: #1d2430;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 

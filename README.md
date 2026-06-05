@@ -9,6 +9,7 @@ It detects candidate video sources on the current page, lets the user verify the
 - Detects video candidates from `<video>` / `<audio>` tags, `<source>` tags, iframes, page resources, `fetch`, `XMLHttpRequest`, and Chrome `webRequest`.
 - Recognizes common candidate types such as direct video files, HLS playlists, DASH manifests, embedded players, playback URLs, and stream segments.
 - Shows candidate options in the popup as variants for verification, not as blindly trusted download links.
+- Supports Russian and English popup UI via JSON locale files.
 - Filters noisy quality variants so the combo box prefers `master` playlists and video formats at `720p` or higher.
 - Uses `yt-dlp --dump-json --skip-download` to verify title, duration, extractor, and approximate size before enabling download.
 - Blocks manual downloads until the selected candidate is confirmed.
@@ -28,6 +29,7 @@ extension/
   popup.html          extension popup UI
   popup.js            popup rendering and user actions
   popup.css           popup styles
+  locales/            Russian and English popup translations
   offscreen.html      offscreen recording document
   offscreen.js        tab recording and chunk streaming
   icons/              extension icons

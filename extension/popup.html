@@ -11,53 +11,61 @@
         <h1>Course Capture</h1>
         <span id="badge"><span id="badgeIcon">⌛</span><span id="badgeText">Ожидание</span></span>
         <div class="header-actions">
-          <button id="helpToggle" class="icon-button" type="button" title="Помощь" aria-label="Помощь">?</button>
-          <button id="settingsToggle" class="icon-button" type="button" title="Настройки" aria-label="Настройки">⚙</button>
+          <button id="helpToggle" class="icon-button" type="button" title="Помощь" aria-label="Помощь" data-i18n-title="help.title" data-i18n-aria="help.title">?</button>
+          <button id="settingsToggle" class="icon-button" type="button" title="Настройки" aria-label="Настройки" data-i18n-title="settings.title" data-i18n-aria="settings.title">⚙</button>
         </div>
       </header>
 
       <section id="helpPanel" class="helper" hidden>
         <div class="panel-head">
-          <strong>Помощь</strong>
-          <button id="helpClose" class="icon-button" type="button" title="Закрыть" aria-label="Закрыть">×</button>
+          <strong data-i18n="help.title">Помощь</strong>
+          <button id="helpClose" class="icon-button" type="button" title="Закрыть" aria-label="Закрыть" data-i18n-title="common.close" data-i18n-aria="common.close">×</button>
         </div>
 
-        <h3>Что должно быть установлено</h3>
+        <h3 data-i18n="help.requirementsTitle">Что должно быть установлено</h3>
         <ul class="helper-list">
-          <li><strong>Chrome extension</strong>: загружено из папки <code>D:\MyGitProjects\chrome-course-capture\extension</code>.</li>
-          <li><strong>Native host</strong>: зарегистрирован скриптом <code>install-native-host.ps1</code>.</li>
-          <li><strong>Node.js</strong>: нужен для запуска native-host, сейчас ожидается <code>C:\Program Files\nodejs\node.exe</code>.</li>
-          <li><strong>yt-dlp</strong>: по умолчанию <code>C:\yt-dlp\yt-dlp.exe</code>.</li>
-          <li><strong>ffmpeg</strong>: нужен для склейки видео и аудио, путь задается в настройках.</li>
+          <li data-i18n-html="help.requirementExtension"><strong>Chrome extension</strong>: загружено из папки <code>D:\MyGitProjects\chrome-course-capture\extension</code>.</li>
+          <li data-i18n-html="help.requirementNative"><strong>Native host</strong>: зарегистрирован скриптом <code>install-native-host.ps1</code>.</li>
+          <li data-i18n-html="help.requirementNode"><strong>Node.js</strong>: нужен для запуска native-host, сейчас ожидается <code>C:\Program Files\nodejs\node.exe</code>.</li>
+          <li data-i18n-html="help.requirementYtdlp"><strong>yt-dlp</strong>: по умолчанию <code>C:\yt-dlp\yt-dlp.exe</code>.</li>
+          <li data-i18n-html="help.requirementFfmpeg"><strong>ffmpeg</strong>: нужен для склейки видео и аудио, путь задается в настройках.</li>
         </ul>
 
-        <h3>Простой рабочий flow</h3>
+        <h3 data-i18n="help.flowTitle">Простой рабочий flow</h3>
         <ol class="helper-steps">
-          <li>Открой страницу курса и войди в аккаунт.</li>
-          <li>Открой расширение и нажми <strong>Начать перехват видео</strong>.</li>
-          <li>Если страница уже открыта давно, нажми <strong>Сканировать страницу</strong>, чтобы повторно поискать iframe/video/resources без reload.</li>
-          <li>На странице курса нажми Play.</li>
-          <li>Если появились варианты, выбери нужный, нажми <strong>Проверить</strong>, посмотри реальное название/длительность и только потом нажми <strong>Скачать</strong>.</li>
-          <li>Если скачивание пошло, смотри статус <strong>Скачивает</strong>. Остановить можно бордовой кнопкой <strong>■</strong>.</li>
-          <li>Если скачать нельзя, расширение может включить <strong>Запись вкладки</strong>. Это пишет всю вкладку вместе с аудио.</li>
-          <li>Если идет <strong>Запись</strong>, нажми <strong>Стоп</strong> или <strong>Ctrl+Shift+Y</strong>. Только после остановки появится файл <code>.webm</code> в папке <strong>Куда сохранять</strong>.</li>
+          <li data-i18n="help.flow1">Открой страницу курса и войди в аккаунт.</li>
+          <li data-i18n-html="help.flow2">Открой расширение и нажми <strong>Начать перехват видео</strong>.</li>
+          <li data-i18n-html="help.flow3">Если страница уже открыта давно, нажми <strong>Сканировать страницу</strong>, чтобы повторно поискать iframe/video/resources без reload.</li>
+          <li data-i18n="help.flow4">На странице курса нажми Play.</li>
+          <li data-i18n-html="help.flow5">Если появились варианты, выбери нужный, нажми <strong>Проверить</strong>, посмотри реальное название/длительность и только потом нажми <strong>Скачать</strong>.</li>
+          <li data-i18n-html="help.flow6">Если скачивание пошло, смотри статус <strong>Скачивает</strong>. Остановить можно бордовой кнопкой <strong>■</strong>.</li>
+          <li data-i18n-html="help.flow7">Если скачать нельзя, расширение может включить <strong>Запись вкладки</strong>. Это пишет всю вкладку вместе с аудио.</li>
+          <li data-i18n-html="help.flow8">Если идет <strong>Запись</strong>, нажми <strong>Стоп</strong> или <strong>Ctrl+Shift+Y</strong>. Только после остановки появится файл <code>.webm</code> в папке <strong>Куда сохранять</strong>.</li>
         </ol>
 
-        <h3>Как читать статусы</h3>
+        <h3 data-i18n="help.statusTitle">Как читать статусы</h3>
         <ul class="helper-list">
-          <li><strong>Ожидание</strong>: расширение ничего не делает.</li>
-          <li><strong>Перехват</strong>: расширение ждет Play и ищет поток.</li>
-          <li><strong>Скачивает</strong>: работает yt-dlp.</li>
-          <li><strong>Запись</strong>: идет запись вкладки.</li>
-          <li><strong>Ошибка</strong>: смотри текст ошибки и <code>native-host.log</code>.</li>
+          <li data-i18n-html="help.statusIdle"><strong>Ожидание</strong>: расширение ничего не делает.</li>
+          <li data-i18n-html="help.statusArmed"><strong>Перехват</strong>: расширение ждет Play и ищет поток.</li>
+          <li data-i18n-html="help.statusDownloading"><strong>Скачивает</strong>: работает yt-dlp.</li>
+          <li data-i18n-html="help.statusRecording"><strong>Запись</strong>: идет запись вкладки.</li>
+          <li data-i18n-html="help.statusError"><strong>Ошибка</strong>: смотри текст ошибки и <code>native-host.log</code>.</li>
         </ul>
       </section>
 
       <section id="settingsPanel" class="settings" hidden>
         <div class="panel-head">
-          <strong>Настройки</strong>
-          <button id="settingsClose" class="icon-button" type="button" title="Закрыть" aria-label="Закрыть">×</button>
+          <strong data-i18n="settings.title">Настройки</strong>
+          <button id="settingsClose" class="icon-button" type="button" title="Закрыть" aria-label="Закрыть" data-i18n-title="common.close" data-i18n-aria="common.close">×</button>
         </div>
+
+        <label>
+          <span data-i18n="settings.language">Язык</span>
+          <select id="language">
+            <option value="ru">Русский</option>
+            <option value="en">English</option>
+          </select>
+        </label>
 
         <label>
           <span>yt-dlp.exe</span>
@@ -70,17 +78,17 @@
         </label>
 
         <label>
-          <span>Куда сохранять</span>
+          <span data-i18n="settings.downloadDir">Куда сохранять</span>
           <input id="downloadDir" type="text" spellcheck="false">
         </label>
 
         <div class="settings-grid">
           <label>
-            <span>Лимит, GB</span>
+            <span data-i18n="settings.limitGb">Лимит, GB</span>
             <input id="maxDownloadGb" type="number" min="1" max="200" step="1">
           </label>
           <label>
-            <span>Формат</span>
+            <span data-i18n="settings.format">Формат</span>
             <select id="mergeFormat">
               <option value="mp4">mp4</option>
               <option value="mkv">mkv</option>
@@ -88,7 +96,7 @@
             </select>
           </label>
           <label>
-            <span>Ретраи</span>
+            <span data-i18n="settings.retries">Ретраи</span>
             <input id="fragmentRetries" type="number" min="0" max="50" step="1">
           </label>
           <label>
@@ -98,12 +106,12 @@
         </div>
 
         <div class="settings-actions">
-          <button id="settingsDefaults" type="button">По умолчанию</button>
-          <button id="settingsSave" type="button">Сохранить</button>
+          <button id="settingsDefaults" type="button" data-i18n="settings.defaults">По умолчанию</button>
+          <button id="settingsSave" type="button" data-i18n="settings.save">Сохранить</button>
         </div>
       </section>
 
-      <section id="status">Загрузка...</section>
+      <section id="status" data-i18n="status.loading">Загрузка...</section>
       <section id="activity" class="activity idle">
         <strong id="activityTitle">Ожидание</strong>
         <span id="activityDetail">Нажми "Начать перехват", затем запусти видео.</span>
@@ -112,29 +120,29 @@
 
       <div class="actions">
         <div class="capture-row">
-          <button id="arm">Начать перехват видео</button>
-          <button id="scan">Сканировать страницу</button>
+          <button id="arm" data-i18n="actions.arm">Начать перехват видео</button>
+          <button id="scan" data-i18n="actions.scan">Сканировать страницу</button>
         </div>
         <div class="source-picker">
-          <select id="sourceSelect" title="Выбор варианта для проверки"></select>
-          <button id="verifySource">Проверить</button>
-          <button id="download">Скачать</button>
-          <button id="cancelDownload" class="icon-button danger" title="Остановить скачивание" aria-label="Остановить скачивание">■</button>
+          <select id="sourceSelect" title="Выбор варианта для проверки" data-i18n-title="actions.sourceSelect"></select>
+          <button id="verifySource" data-i18n="actions.verify">Проверить</button>
+          <button id="download" data-i18n="actions.download">Скачать</button>
+          <button id="cancelDownload" class="icon-button danger" title="Остановить скачивание" aria-label="Остановить скачивание" data-i18n-title="actions.cancelDownload" data-i18n-aria="actions.cancelDownload">■</button>
         </div>
-        <button id="record">Запись вкладки</button>
-        <button id="stop">Стоп</button>
+        <button id="record" data-i18n="actions.record">Запись вкладки</button>
+        <button id="stop" data-i18n="actions.stop">Стоп</button>
       </div>
 
       <label class="toggle">
         <input id="fallback" type="checkbox" checked>
-        <span>Если ссылку скачать не удалось - начать запись вкладки</span>
+        <span data-i18n="actions.fallback">Если ссылку скачать не удалось - начать запись вкладки</span>
       </label>
 
-      <section class="shortcut">Ctrl+Shift+Y - остановить запись</section>
+      <section class="shortcut" data-i18n="actions.shortcut">Ctrl+Shift+Y - остановить запись</section>
 
       <section class="sources-panel">
-        <h2>Найденные варианты</h2>
-        <section class="sources-note">Выбор для проверки находится в списке выше. Здесь детали найденных URL.</section>
+        <h2 data-i18n="sources.title">Найденные варианты</h2>
+        <section class="sources-note" data-i18n="sources.note">Выбор для проверки находится в списке выше. Здесь детали найденных URL.</section>
         <ol id="candidates"></ol>
       </section>
     </main>

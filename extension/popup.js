@@ -25,6 +25,7 @@ const elements = {
   settingsClose: document.getElementById("settingsClose"),
   settingsSave: document.getElementById("settingsSave"),
   settingsDefaults: document.getElementById("settingsDefaults"),
+  language: document.getElementById("language"),
   ytDlpPath: document.getElementById("ytDlpPath"),
   ffmpegDir: document.getElementById("ffmpegDir"),
   downloadDir: document.getElementById("downloadDir"),
@@ -50,6 +51,8 @@ let timerId = null;
 let renderThrottleId = null;
 let pendingState = null;
 let stopPending = false;
+let currentLanguage = "ru";
+let messages = {};
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -61,11 +64,17 @@ chrome.runtime.onMessage.addListener(message => {
 
 async function init() {
   try {
-    const config = await chrome.storage.local.get({ autoRecordFallback: true });
+    const config = await chrome.storage.local.get({ autoRecordFallback: true, language: "ru" });
+    currentLanguage = normalizeLanguage(config.language);
+    messages = await loadMessages(currentLanguage);
+    elements.language.value = currentLanguage;
+    applyTranslations();
+
     elements.fallback.checked = !!config.autoRecordFallback;
     elements.fallback.addEventListener("change", () => {
       chrome.storage.local.set({ autoRecordFallback: elements.fallback.checked });
     });
+    elements.language.addEventListener("change", changeLanguage);
 
     elements.arm.addEventListener("click", () => send("ARM"));
     elements.scan.addEventListener("click", () => send("SCAN_PAGE"));
@@ -93,8 +102,64 @@ async function init() {
     fillSettings(response.settings || DEFAULT_SETTINGS);
     render(response.state);
   } catch (error) {
-    showError(`Popup не смог подключиться к background: ${error.message}`);
+    showError(t("errors.popupConnect", { error: error.message }));
   }
+}
+
+async function changeLanguage() {
+  currentLanguage = normalizeLanguage(elements.language.value);
+  messages = await loadMessages(currentLanguage);
+  await chrome.storage.local.set({ language: currentLanguage });
+  applyTranslations();
+  if (lastState) render(lastState);
+}
+
+function normalizeLanguage(language) {
+  return language === "en" ? "en" : "ru";
+}
+
+async function loadMessages(language) {
+  const url = chrome.runtime.getURL(`locales/${language}.json`);
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    if (language !== "ru") return loadMessages("ru");
+    console.warn("Course Capture could not load locale", language, error);
+    return {};
+  }
+}
+
+function applyTranslations() {
+  document.querySelectorAll("[data-i18n]").forEach(element => {
+    element.textContent = t(element.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-html]").forEach(element => {
+    element.innerHTML = t(element.dataset.i18nHtml);
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach(element => {
+    element.title = t(element.dataset.i18nTitle);
+  });
+  document.querySelectorAll("[data-i18n-aria]").forEach(element => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAria));
+  });
+  document.documentElement.lang = currentLanguage;
+}
+
+function t(key, params = {}) {
+  let value = getMessageValue(key);
+  if (typeof value !== "string") return key;
+  for (const [name, replacement] of Object.entries(params)) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
+
+function getMessageValue(key) {
+  return String(key || "").split(".").reduce((value, part) => {
+    return value && Object.prototype.hasOwnProperty.call(value, part) ? value[part] : undefined;
+  }, messages);
 }
 
 function toggleSettings() {
@@ -111,7 +176,7 @@ async function saveSettings() {
   const settings = readSettings();
   const response = await send("SAVE_SETTINGS", { settings });
   if (response.settings) fillSettings(response.settings);
-  elements.status.textContent = "Настройки сохранены. Следующий запуск yt-dlp возьмет эти пути и лимиты.";
+  elements.status.textContent = t("status.settingsSaved");
 }
 
 function fillSettings(settings) {
@@ -145,7 +210,7 @@ async function send(type, extra = {}) {
     if (response && response.error) showError(response.error);
     return response || {};
   } catch (error) {
-    showError(`Нет ответа от расширения: ${error.message}`);
+    showError(t("errors.noExtensionResponse", { error: error.message }));
     return {};
   }
 }
@@ -172,8 +237,8 @@ function sendWithTimeout(message, timeoutMs) {
 }
 
 function showError(message) {
-  setBadge("error", "!", "Ошибка");
-  elements.status.textContent = "Ошибка расширения. Нажми Reload в chrome://extensions и попробуй снова.";
+  setBadge("error", "!", t("badges.error"));
+  elements.status.textContent = t("errors.reloadExtension");
   elements.error.hidden = false;
   elements.error.textContent = message;
 }
@@ -183,7 +248,7 @@ function render(state) {
   lastState = state;
   ensureTimer(state);
   renderBadge(state);
-  elements.status.textContent = state.status || "Ожидание.";
+  elements.status.textContent = localizeStatus(state.status) || t("status.idle");
   renderActivity(state);
 
   elements.error.hidden = !state.error && !state.lastNativeError;
@@ -193,14 +258,14 @@ function render(state) {
   elements.arm.disabled = state.armed || state.busy || state.recording;
   elements.scan.disabled = state.busy || state.recording;
   elements.verifySource.disabled = state.busy || state.recording || !state.candidates.length || state.verifyingSource;
-  elements.verifySource.textContent = state.verifyingSource ? "…" : "Проверить";
+  elements.verifySource.textContent = state.verifyingSource ? "…" : t("actions.verify");
   elements.download.disabled = state.busy || state.recording || !selectedCandidateIsVerified(state);
   elements.cancelDownload.disabled = !state.downloading || state.cancellingDownload;
   elements.cancelDownload.textContent = state.cancellingDownload ? "…" : "■";
   elements.record.disabled = state.busy || state.recording;
   if (!state.recording) stopPending = false;
   elements.stop.disabled = !state.recording || stopPending;
-  elements.stop.textContent = stopPending ? "…" : "Стоп";
+  elements.stop.textContent = stopPending ? "…" : t("actions.stop");
 
   elements.candidates.innerHTML = "";
   for (const [index, candidate] of (state.candidates || []).entries()) {
@@ -217,7 +282,7 @@ function render(state) {
     url.addEventListener("click", () => navigator.clipboard.writeText(candidate.url));
     detail.textContent = displayCandidateHost(candidate);
     detail.className = "candidate-detail";
-    source.textContent = `Найдено через: ${translateSource(candidate.source)}. Нажми URL, чтобы скопировать.`;
+    source.textContent = t("sources.foundVia", { source: translateSource(candidate.source) });
     source.className = "source";
     const check = renderCandidateCheck(candidate);
     item.append(title, detail, url, source);
@@ -233,7 +298,7 @@ function renderSourceSelect(state) {
   if (!candidates.length) {
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "Источники пока не найдены";
+    option.textContent = t("sources.none");
     elements.sourceSelect.append(option);
     elements.sourceSelect.disabled = true;
     return;
@@ -280,18 +345,22 @@ function renderCandidateCheck(candidate) {
   const box = document.createElement("section");
   box.className = `source-check ${check.confirmed ? "ok" : "bad"}`;
   if (!check.ok) {
-    box.textContent = `Проверка не прошла: ${check.error || "не удалось получить метаданные"}`;
+    box.textContent = t("check.failed", { error: check.error || t("check.noMetadata") });
     return box;
   }
   if (!check.confirmed) {
-    box.textContent = `Не подтверждено: ${check.warning || "нет надежных метаданных"}${check.title ? ` · title: ${check.title}` : ""}${check.extractor ? ` · ${check.extractor}` : ""}`;
+    box.textContent = [
+      t("check.notConfirmed", { warning: check.warning || t("check.noReliableMetadata") }),
+      check.title ? `title: ${check.title}` : "",
+      check.extractor || ""
+    ].filter(Boolean).join(" · ");
     return box;
   }
   const lines = [
-    `Подтверждено: ${check.title || "без названия"}`,
-    check.duration ? `Длительность: ${check.duration}` : "",
-    check.extractor ? `Источник: ${check.extractor}` : "",
-    check.size ? `Размер: ${check.size}` : ""
+    t("check.confirmed", { title: check.title || t("check.untitled") }),
+    check.duration ? t("check.duration", { duration: check.duration }) : "",
+    check.extractor ? t("check.extractor", { extractor: check.extractor }) : "",
+    check.size ? t("check.size", { size: check.size }) : ""
   ].filter(Boolean);
   box.textContent = lines.join(" · ");
   return box;
@@ -299,22 +368,22 @@ function renderCandidateCheck(candidate) {
 
 function renderBadge(state) {
   if (state.error || state.lastNativeError) {
-    setBadge("error", "!", "Ошибка");
+    setBadge("error", "!", t("badges.error"));
     return;
   }
   if (state.recording) {
-    setBadge("recording", "●", "Запись");
+    setBadge("recording", "●", t("badges.recording"));
     return;
   }
   if (state.downloading || state.busy) {
-    setBadge("downloading", "↓", "Скачивает");
+    setBadge("downloading", "↓", t("badges.downloading"));
     return;
   }
   if (state.armed) {
-    setBadge("armed", "◎", "Перехват");
+    setBadge("armed", "◎", t("badges.armed"));
     return;
   }
-  setBadge("waiting", "⌛", "Ожидание");
+  setBadge("waiting", "⌛", t("badges.waiting"));
 }
 
 function displayCandidateHost(candidate) {
@@ -323,15 +392,20 @@ function displayCandidateHost(candidate) {
 
 function candidateOptionLabel(index, candidate, candidates) {
   const videoNumber = candidateVideoNumber(candidate, candidates);
-  return `${index + 1}. ${candidateTypeLabel(candidate)} - видео ${videoNumber} - ${candidateVariantLabel(candidate)}`;
+  return t("candidate.option", {
+    index: index + 1,
+    type: candidateTypeLabel(candidate),
+    video: videoNumber,
+    variant: candidateVariantLabel(candidate)
+  });
 }
 
 function candidateTypeLabel(candidate) {
-  if (candidate.kind === "embed") return "плеер";
+  if (candidate.kind === "embed") return t("candidate.types.player");
   if (candidate.kind === "hls") return "HLS PL";
   if (candidate.kind === "dash") return "DASH";
-  if (candidate.kind === "file") return "видеофайл";
-  if (candidate.kind === "segment") return "сегмент";
+  if (candidate.kind === "file") return t("candidate.types.file");
+  if (candidate.kind === "segment") return t("candidate.types.segment");
   if (candidate.kind === "playback") return "video playback";
   return "URL";
 }
@@ -368,15 +442,15 @@ function candidateVariantLabel(candidate) {
   const quality = text.match(/(?:\/|_|-)(240|360|480|540|720|1080|1440|2160)(?:p)?(?:\/|\.|_|-|\?|$)/i);
   if (quality) {
     const height = Number(quality[1]);
-    if (height < 720) return `${height}p (нет 720+)`;
+    if (height < 720) return t("candidate.lowFallback", { height });
     if (height < 1080) return `HD ${height}p`;
     return `FullHD ${height}p`;
   }
   if (candidate.kind === "hls") return "HLS";
   if (candidate.kind === "dash") return "DASH";
-  if (candidate.kind === "embed") return "player";
-  if (candidate.kind === "file") return "file";
-  return candidate.label || "source";
+  if (candidate.kind === "embed") return t("candidate.variants.player");
+  if (candidate.kind === "file") return t("candidate.variants.file");
+  return candidate.label || t("candidate.variants.source");
 }
 
 function displayCandidatePath(candidate) {
@@ -418,28 +492,28 @@ function renderActivity(state) {
   elements.activity.className = "activity";
   if (state.recording) {
     elements.activity.classList.add("recording");
-    elements.activityTitle.textContent = `ИДЕТ ЗАПИСЬ ${formatElapsed(state.recordingStartedAt)}`;
+    elements.activityTitle.textContent = t("activity.recordingTitle", { elapsed: formatElapsed(state.recordingStartedAt) });
     const recordedSize = formatBytes(state.recordingBytes || 0);
     elements.activityDetail.textContent = recordedSize
-      ? `Пишу текущую вкладку вместе с аудио. Уже записано ${recordedSize}. Нажми Стоп, чтобы сохранить .webm.`
-      : "Пишу текущую вкладку вместе с аудио. Нажми Стоп, чтобы сохранить .webm.";
+      ? t("activity.recordingDetailWithSize", { size: recordedSize })
+      : t("activity.recordingDetail");
     return;
   }
   if (state.busy) {
     elements.activity.classList.add("downloading");
-    elements.activityTitle.textContent = "⌛ ИДЕТ СКАЧИВАНИЕ";
-    elements.activityDetail.textContent = "Работает yt-dlp. Файл появится в папке \"Куда сохранять\", если скачивание успешно.";
+    elements.activityTitle.textContent = t("activity.downloadingTitle");
+    elements.activityDetail.textContent = t("activity.downloadingDetail");
     return;
   }
   if (state.armed) {
     elements.activity.classList.add("armed");
-    elements.activityTitle.textContent = "ПЕРЕХВАТ ВКЛЮЧЕН";
-    elements.activityDetail.textContent = "Запусти видео на странице. Если найденный URL не скачается, включится запись вкладки.";
+    elements.activityTitle.textContent = t("activity.armedTitle");
+    elements.activityDetail.textContent = t("activity.armedDetail");
     return;
   }
   elements.activity.classList.add("idle");
-  elements.activityTitle.textContent = "ОЖИДАНИЕ";
-  elements.activityDetail.textContent = "Нажми Начать перехват видео, затем запусти видео.";
+  elements.activityTitle.textContent = t("activity.idleTitle");
+  elements.activityDetail.textContent = t("activity.idleDetail");
 }
 
 function ensureTimer(state) {
@@ -477,11 +551,34 @@ function formatBytes(bytes) {
 }
 
 function translateSource(source) {
-  if (!source) return "неизвестно";
-  if (source === "video") return "тег video на странице";
-  if (source === "iframe") return "iframe-плеер";
-  if (source === "response") return "ответ JS/API запроса";
-  if (source === "page") return "ресурсы страницы";
-  if (source.startsWith("network:")) return `сетевой запрос ${source.slice("network:".length)}`;
+  if (!source) return t("sources.unknown");
+  if (source === "video") return t("sources.videoTag");
+  if (source === "iframe") return t("sources.iframe");
+  if (source === "response") return t("sources.response");
+  if (source === "page") return t("sources.page");
+  if (source.startsWith("network:")) return t("sources.network", { type: source.slice("network:".length) });
   return source;
+}
+
+function localizeStatus(status) {
+  const value = String(status || "").trim();
+  if (!value) return "";
+  const exact = {
+    "Ожидание.": "status.idle",
+    "Загрузка...": "status.loading",
+    "Сначала нажми Проверить и подтверди, что это нужное видео.": "status.verifyFirst",
+    "Пока не нашел URL для скачивания.": "status.noCandidate",
+    "Останавливаю скачивание yt-dlp...": "status.stoppingDownload",
+    "Скачивание остановлено.": "status.downloadStopped"
+  };
+  if (exact[value]) return t(exact[value]);
+  let match = value.match(/^Найдено вариантов для проверки: (\d+)\./);
+  if (match) return t("status.candidatesFound", { count: match[1] });
+  match = value.match(/^Скан готов: video (\d+), iframe (\d+), res (\d+)\./);
+  if (match) return t("status.scanDone", { videos: match[1], embeds: match[2], resources: match[3] });
+  if (/^Проверяю источник через yt-dlp:/i.test(value)) return t("status.verifying");
+  if (/^Источник подтвержден:/i.test(value)) return value.replace("Источник подтвержден:", t("status.sourceConfirmedPrefix"));
+  if (/^Источник читается, но НЕ подтвержден:/i.test(value)) return value.replace("Источник читается, но НЕ подтвержден:", t("status.sourceReadableNotConfirmedPrefix"));
+  if (/^Проверка не прошла:/i.test(value)) return value.replace("Проверка не прошла:", t("status.verificationFailedPrefix"));
+  return value;
 }

@@ -1,0 +1,126 @@
+{
+  "common": {
+    "close": "Закрыть"
+  },
+  "help": {
+    "title": "Помощь",
+    "requirementsTitle": "Что должно быть установлено",
+    "requirementExtension": "<strong>Chrome extension</strong>: загружено из папки <code>D:\\MyGitProjects\\chrome-course-capture\\extension</code>.",
+    "requirementNative": "<strong>Native host</strong>: зарегистрирован скриптом <code>install-native-host.ps1</code>.",
+    "requirementNode": "<strong>Node.js</strong>: нужен для запуска native-host, сейчас ожидается <code>C:\\Program Files\\nodejs\\node.exe</code>.",
+    "requirementYtdlp": "<strong>yt-dlp</strong>: по умолчанию <code>C:\\yt-dlp\\yt-dlp.exe</code>.",
+    "requirementFfmpeg": "<strong>ffmpeg</strong>: нужен для склейки видео и аудио, путь задается в настройках.",
+    "flowTitle": "Простой рабочий flow",
+    "flow1": "Открой страницу курса и войди в аккаунт.",
+    "flow2": "Открой расширение и нажми <strong>Начать перехват видео</strong>.",
+    "flow3": "Если страница уже открыта давно, нажми <strong>Сканировать страницу</strong>, чтобы повторно поискать iframe/video/resources без reload.",
+    "flow4": "На странице курса нажми Play.",
+    "flow5": "Если появились варианты, выбери нужный, нажми <strong>Проверить</strong>, посмотри реальное название/длительность и только потом нажми <strong>Скачать</strong>.",
+    "flow6": "Если скачивание пошло, смотри статус <strong>Скачивает</strong>. Остановить можно бордовой кнопкой <strong>■</strong>.",
+    "flow7": "Если скачать нельзя, расширение может включить <strong>Запись вкладки</strong>. Это пишет всю вкладку вместе с аудио.",
+    "flow8": "Если идет <strong>Запись</strong>, нажми <strong>Стоп</strong> или <strong>Ctrl+Shift+Y</strong>. Только после остановки появится файл <code>.webm</code> в папке <strong>Куда сохранять</strong>.",
+    "statusTitle": "Как читать статусы",
+    "statusIdle": "<strong>Ожидание</strong>: расширение ничего не делает.",
+    "statusArmed": "<strong>Перехват</strong>: расширение ждет Play и ищет поток.",
+    "statusDownloading": "<strong>Скачивает</strong>: работает yt-dlp.",
+    "statusRecording": "<strong>Запись</strong>: идет запись вкладки.",
+    "statusError": "<strong>Ошибка</strong>: смотри текст ошибки и <code>native-host.log</code>."
+  },
+  "settings": {
+    "title": "Настройки",
+    "language": "Язык",
+    "downloadDir": "Куда сохранять",
+    "limitGb": "Лимит, GB",
+    "format": "Формат",
+    "retries": "Ретраи",
+    "defaults": "По умолчанию",
+    "save": "Сохранить"
+  },
+  "actions": {
+    "arm": "Начать перехват видео",
+    "scan": "Сканировать страницу",
+    "sourceSelect": "Выбор варианта для проверки",
+    "verify": "Проверить",
+    "download": "Скачать",
+    "cancelDownload": "Остановить скачивание",
+    "record": "Запись вкладки",
+    "stop": "Стоп",
+    "fallback": "Если ссылку скачать не удалось - начать запись вкладки",
+    "shortcut": "Ctrl+Shift+Y - остановить запись"
+  },
+  "badges": {
+    "waiting": "Ожидание",
+    "armed": "Перехват",
+    "downloading": "Скачивает",
+    "recording": "Запись",
+    "error": "Ошибка"
+  },
+  "status": {
+    "loading": "Загрузка...",
+    "idle": "Ожидание.",
+    "settingsSaved": "Настройки сохранены. Следующий запуск yt-dlp возьмет эти пути и лимиты.",
+    "verifyFirst": "Сначала нажми Проверить и подтверди, что это нужное видео.",
+    "noCandidate": "Пока не нашел URL для скачивания.",
+    "stoppingDownload": "Останавливаю скачивание yt-dlp...",
+    "downloadStopped": "Скачивание остановлено.",
+    "candidatesFound": "Найдено вариантов для проверки: {count}. Выбери вариант и нажми Проверить.",
+    "scanDone": "Скан готов: video {videos}, iframe {embeds}, res {resources}.",
+    "verifying": "Проверяю источник через yt-dlp...",
+    "sourceConfirmedPrefix": "Источник подтвержден:",
+    "sourceReadableNotConfirmedPrefix": "Источник читается, но НЕ подтвержден:",
+    "verificationFailedPrefix": "Проверка не прошла:"
+  },
+  "activity": {
+    "recordingTitle": "ИДЕТ ЗАПИСЬ {elapsed}",
+    "recordingDetail": "Пишу текущую вкладку вместе с аудио. Нажми Стоп, чтобы сохранить .webm.",
+    "recordingDetailWithSize": "Пишу текущую вкладку вместе с аудио. Уже записано {size}. Нажми Стоп, чтобы сохранить .webm.",
+    "downloadingTitle": "⌛ ИДЕТ СКАЧИВАНИЕ",
+    "downloadingDetail": "Работает yt-dlp. Файл появится в папке \"Куда сохранять\", если скачивание успешно.",
+    "armedTitle": "ПЕРЕХВАТ ВКЛЮЧЕН",
+    "armedDetail": "Запусти видео на странице. Если найденный URL не скачается, включится запись вкладки.",
+    "idleTitle": "ОЖИДАНИЕ",
+    "idleDetail": "Нажми Начать перехват видео, затем запусти видео."
+  },
+  "sources": {
+    "title": "Найденные варианты",
+    "note": "Выбор для проверки находится в списке выше. Здесь детали найденных URL.",
+    "none": "Варианты пока не найдены",
+    "foundVia": "Найдено через: {source}. Нажми URL, чтобы скопировать.",
+    "unknown": "неизвестно",
+    "videoTag": "тег video на странице",
+    "iframe": "iframe-плеер",
+    "response": "ответ JS/API запроса",
+    "page": "ресурсы страницы",
+    "network": "сетевой запрос {type}"
+  },
+  "check": {
+    "failed": "Проверка не прошла: {error}",
+    "noMetadata": "не удалось получить метаданные",
+    "notConfirmed": "Не подтверждено: {warning}",
+    "noReliableMetadata": "нет надежных метаданных",
+    "confirmed": "Подтверждено: {title}",
+    "untitled": "без названия",
+    "duration": "Длительность: {duration}",
+    "extractor": "Источник: {extractor}",
+    "size": "Размер: {size}"
+  },
+  "candidate": {
+    "option": "{index}. {type} - видео {video} - {variant}",
+    "lowFallback": "{height}p (нет 720+)",
+    "types": {
+      "player": "плеер",
+      "file": "видеофайл",
+      "segment": "сегмент"
+    },
+    "variants": {
+      "player": "player",
+      "file": "file",
+      "source": "source"
+    }
+  },
+  "errors": {
+    "popupConnect": "Popup не смог подключиться к background: {error}",
+    "noExtensionResponse": "Нет ответа от расширения: {error}",
+    "reloadExtension": "Ошибка расширения. Нажми Reload в chrome://extensions и попробуй снова."
+  }
+}

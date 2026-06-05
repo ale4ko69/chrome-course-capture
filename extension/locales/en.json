@@ -1,0 +1,126 @@
+{
+  "common": {
+    "close": "Close"
+  },
+  "help": {
+    "title": "Help",
+    "requirementsTitle": "Required setup",
+    "requirementExtension": "<strong>Chrome extension</strong>: loaded from <code>D:\\MyGitProjects\\chrome-course-capture\\extension</code>.",
+    "requirementNative": "<strong>Native host</strong>: registered with <code>install-native-host.ps1</code>.",
+    "requirementNode": "<strong>Node.js</strong>: required to run the native host, currently expected at <code>C:\\Program Files\\nodejs\\node.exe</code>.",
+    "requirementYtdlp": "<strong>yt-dlp</strong>: default path is <code>C:\\yt-dlp\\yt-dlp.exe</code>.",
+    "requirementFfmpeg": "<strong>ffmpeg</strong>: required for merging video and audio; configure its path in settings.",
+    "flowTitle": "Simple workflow",
+    "flow1": "Open the course page and log in.",
+    "flow2": "Open the extension and click <strong>Start video capture</strong>.",
+    "flow3": "If the page has been open for a while, click <strong>Scan page</strong> to search iframe/video/resources again without reloading.",
+    "flow4": "Press Play on the course page.",
+    "flow5": "When variants appear, choose one, click <strong>Verify</strong>, check the real title/duration, and only then click <strong>Download</strong>.",
+    "flow6": "If downloading starts, watch the <strong>Downloading</strong> status. Stop it with the red <strong>■</strong> button.",
+    "flow7": "If direct download is not possible, the extension can start <strong>Tab recording</strong>. It records the whole tab with audio.",
+    "flow8": "When <strong>Recording</strong> is active, click <strong>Stop</strong> or press <strong>Ctrl+Shift+Y</strong>. The <code>.webm</code> file appears in <strong>Save folder</strong> only after recording stops.",
+    "statusTitle": "How to read statuses",
+    "statusIdle": "<strong>Idle</strong>: the extension is not doing anything.",
+    "statusArmed": "<strong>Capture armed</strong>: waiting for Play and searching for a stream.",
+    "statusDownloading": "<strong>Downloading</strong>: yt-dlp is running.",
+    "statusRecording": "<strong>Recording</strong>: tab recording is running.",
+    "statusError": "<strong>Error</strong>: check the error text and <code>native-host.log</code>."
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "downloadDir": "Save folder",
+    "limitGb": "Limit, GB",
+    "format": "Format",
+    "retries": "Retries",
+    "defaults": "Defaults",
+    "save": "Save"
+  },
+  "actions": {
+    "arm": "Start video capture",
+    "scan": "Scan page",
+    "sourceSelect": "Choose a variant to verify",
+    "verify": "Verify",
+    "download": "Download",
+    "cancelDownload": "Stop download",
+    "record": "Tab recording",
+    "stop": "Stop",
+    "fallback": "Start tab recording if the link cannot be downloaded",
+    "shortcut": "Ctrl+Shift+Y - stop recording"
+  },
+  "badges": {
+    "waiting": "Idle",
+    "armed": "Capture",
+    "downloading": "Downloading",
+    "recording": "Recording",
+    "error": "Error"
+  },
+  "status": {
+    "loading": "Loading...",
+    "idle": "Idle.",
+    "settingsSaved": "Settings saved. The next yt-dlp run will use these paths and limits.",
+    "verifyFirst": "Click Verify first and confirm that this is the right video.",
+    "noCandidate": "No downloadable URL found yet.",
+    "stoppingDownload": "Stopping yt-dlp download...",
+    "downloadStopped": "Download stopped.",
+    "candidatesFound": "Found variants to verify: {count}. Choose a variant and click Verify.",
+    "scanDone": "Scan complete: video {videos}, iframe {embeds}, res {resources}.",
+    "verifying": "Verifying source with yt-dlp...",
+    "sourceConfirmedPrefix": "Source confirmed:",
+    "sourceReadableNotConfirmedPrefix": "Source is readable but NOT confirmed:",
+    "verificationFailedPrefix": "Verification failed:"
+  },
+  "activity": {
+    "recordingTitle": "RECORDING {elapsed}",
+    "recordingDetail": "Recording the current tab with audio. Click Stop to save the .webm file.",
+    "recordingDetailWithSize": "Recording the current tab with audio. Recorded {size}. Click Stop to save the .webm file.",
+    "downloadingTitle": "⌛ DOWNLOADING",
+    "downloadingDetail": "yt-dlp is running. The file will appear in the save folder if the download succeeds.",
+    "armedTitle": "CAPTURE ARMED",
+    "armedDetail": "Start video playback on the page. If the detected URL cannot be downloaded, tab recording can start.",
+    "idleTitle": "IDLE",
+    "idleDetail": "Click Start video capture, then start the video."
+  },
+  "sources": {
+    "title": "Found variants",
+    "note": "Choose a variant to verify from the list above. URL details are shown here.",
+    "none": "No variants found yet",
+    "foundVia": "Found via: {source}. Click the URL to copy it.",
+    "unknown": "unknown",
+    "videoTag": "video tag on the page",
+    "iframe": "iframe player",
+    "response": "JS/API response",
+    "page": "page resources",
+    "network": "network request {type}"
+  },
+  "check": {
+    "failed": "Verification failed: {error}",
+    "noMetadata": "metadata could not be read",
+    "notConfirmed": "Not confirmed: {warning}",
+    "noReliableMetadata": "no reliable metadata",
+    "confirmed": "Confirmed: {title}",
+    "untitled": "untitled",
+    "duration": "Duration: {duration}",
+    "extractor": "Source: {extractor}",
+    "size": "Size: {size}"
+  },
+  "candidate": {
+    "option": "{index}. {type} - video {video} - {variant}",
+    "lowFallback": "{height}p (no 720+)",
+    "types": {
+      "player": "player",
+      "file": "video file",
+      "segment": "segment"
+    },
+    "variants": {
+      "player": "player",
+      "file": "file",
+      "source": "source"
+    }
+  },
+  "errors": {
+    "popupConnect": "Popup could not connect to background: {error}",
+    "noExtensionResponse": "No response from the extension: {error}",
+    "reloadExtension": "Extension error. Click Reload in chrome://extensions and try again."
+  }
+}

@@ -199,15 +199,25 @@ function readSettings() {
 
 async function send(type, extra = {}) {
   try {
-    const timeoutMs = type === "START_RECORD" ? 120000 : 5000;
+    const timeoutMs = commandTimeoutMs(type);
     const response = await sendWithTimeout({ type, ...extra }, timeoutMs);
     if (response && response.state) render(response.state);
     if (response && response.error) showError(response.error);
     return response || {};
   } catch (error) {
+    if (type === "VERIFY_CANDIDATE" && lastState && lastState.verifyingSource) {
+      return {};
+    }
     showError(t("errors.noExtensionResponse", { error: error.message }));
     return {};
   }
+}
+
+function commandTimeoutMs(type) {
+  if (type === "START_RECORD") return 120000;
+  if (type === "VERIFY_CANDIDATE") return 90000;
+  if (type === "DOWNLOAD_CANDIDATE" || type === "DOWNLOAD_BEST") return 30000;
+  return 5000;
 }
 
 async function stopRecording() {

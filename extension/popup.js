@@ -418,6 +418,7 @@ function candidateOptionLabel(index, candidate, candidates) {
 
 function candidateTypeLabel(candidate) {
   if (candidate.kind === "youtube") return "YouTube";
+  if (candidate.kind === "vkvideo") return "VK Video";
   if (candidate.kind === "embed") return t("candidate.types.player");
   if (candidate.kind === "hls") return "HLS PL";
   if (candidate.kind === "dash") return "DASH";
@@ -441,6 +442,8 @@ function candidateGroupKey(candidate) {
     const parsed = new URL(candidate.url);
     const youtubeId = youtubeVideoIdFromUrl(parsed);
     if (youtubeId) return `youtube:video:${youtubeId}`;
+    const vkId = vkVideoIdFromUrl(parsed);
+    if (vkId) return `vkvideo:video:${vkId}`;
     if (/googlevideo\.com$/i.test(parsed.hostname) || /videoplayback/i.test(parsed.pathname)) {
       return `youtube:playback:${parsed.searchParams.get("id") || "current"}`;
     }
@@ -459,6 +462,7 @@ function candidateGroupKey(candidate) {
 
 function candidateVariantLabel(candidate) {
   const text = `${candidate.url} ${candidate.path || ""}`;
+  if (candidate.kind === "vkvideo") return t("candidate.variants.currentVideo");
   if (candidate.kind === "youtube") return t("candidate.variants.currentVideo");
   if (/master|get-master-playlist|\/master(\/|$|\?)/i.test(text)) return "master";
   if (/sign-player/i.test(text)) return "sign/API";
@@ -494,6 +498,13 @@ function youtubeVideoIdFromUrl(parsed) {
 function cleanYouTubeId(value) {
   const id = String(value || "").trim();
   return /^[a-zA-Z0-9_-]{6,20}$/.test(id) ? id : "";
+}
+
+function vkVideoIdFromUrl(parsed) {
+  const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+  if (host !== "vkvideo.ru" && host !== "m.vkvideo.ru") return "";
+  const match = parsed.pathname.match(/^\/video(-?\d+_\d+)/i);
+  return match ? match[1] : "";
 }
 
 function displayCandidatePath(candidate) {

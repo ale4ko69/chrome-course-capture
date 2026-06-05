@@ -77,12 +77,12 @@ async function handleMessage(message, sender) {
     tabState.lastTitle = message.title || tabState.lastTitle;
     tabState.playbackObserved = true;
     let changedAny = false;
-    const youtubeUrl = canonicalYouTubeWatchUrl(sender.tab && sender.tab.url);
-    if (youtubeUrl) {
+    const pageVideoUrl = canonicalPageVideoUrl(sender.tab && sender.tab.url);
+    if (pageVideoUrl) {
       changedAny = rememberCandidate(tabId, {
-        url: youtubeUrl,
+        url: pageVideoUrl,
         source: "tab:url",
-        score: scoreUrl(youtubeUrl) + 100,
+        score: scoreUrl(pageVideoUrl) + 100,
         at: Date.now()
       }) || changedAny;
       if (changedAny && tabState.armed && tabState.playbackObserved && !tabState.busy) {
@@ -90,7 +90,7 @@ async function handleMessage(message, sender) {
       }
       return { ok: true };
     }
-    if (isYouTubePageUrl(sender.tab && sender.tab.url)) return { ok: true };
+    if (isSingleVideoPageUrl(sender.tab && sender.tab.url)) return { ok: true };
     if (message.url) {
       changedAny = rememberCandidate(tabId, {
         url: message.url,
@@ -139,12 +139,12 @@ async function handleMessage(message, sender) {
     tabState.lastTitle = message.title || tabState.lastTitle;
     tabState.playlistObserved = true;
     let changedAny = false;
-    const youtubeUrl = canonicalYouTubeWatchUrl(sender.tab && sender.tab.url);
-    if (youtubeUrl) {
+    const pageVideoUrl = canonicalPageVideoUrl(sender.tab && sender.tab.url);
+    if (pageVideoUrl) {
       changedAny = rememberCandidate(tabId, {
-        url: youtubeUrl,
+        url: pageVideoUrl,
         source: "tab:url",
-        score: scoreUrl(youtubeUrl) + 100,
+        score: scoreUrl(pageVideoUrl) + 100,
         at: Date.now()
       }) || changedAny;
       if (changedAny && tabState.armed && !tabState.busy) {
@@ -152,7 +152,7 @@ async function handleMessage(message, sender) {
       }
       return { ok: true };
     }
-    if (isYouTubePageUrl(sender.tab && sender.tab.url)) return { ok: true };
+    if (isSingleVideoPageUrl(sender.tab && sender.tab.url)) return { ok: true };
     if (message.url) {
       changedAny = rememberCandidate(tabId, {
         url: message.url,
@@ -343,6 +343,7 @@ function isMediaCandidate(url) {
 }
 
 function scoreUrl(url) {
+  if (canonicalVkVideoUrl(url)) return 168;
   if (canonicalYouTubeWatchUrl(url)) return 170;
   if (/\/api\/playlist\/master\/|get-master-playlist/i.test(url)) return 180;
   if (/\/api\/playlist\/media\/|get-media-playlist/i.test(url)) return 145;
@@ -423,17 +424,17 @@ function rememberCandidate(tabId, candidate) {
 async function rememberNetworkCandidate(tabId, url, type) {
   try {
     const tab = await chrome.tabs.get(tabId);
-    const youtubeUrl = canonicalYouTubeWatchUrl(tab && tab.url);
-    if (youtubeUrl) {
+    const pageVideoUrl = canonicalPageVideoUrl(tab && tab.url);
+    if (pageVideoUrl) {
       rememberCandidate(tabId, {
-        url: youtubeUrl,
+        url: pageVideoUrl,
         source: "tab:url",
-        score: scoreUrl(youtubeUrl) + 100,
+        score: scoreUrl(pageVideoUrl) + 100,
         at: Date.now()
       });
       return;
     }
-    if (isYouTubePageUrl(tab && tab.url)) return;
+    if (isSingleVideoPageUrl(tab && tab.url)) return;
   } catch (_) {
     // Fall through to the observed network URL if tab metadata is unavailable.
   }
@@ -446,12 +447,12 @@ async function rememberNetworkCandidate(tabId, url, type) {
 }
 
 function rememberCurrentPageCandidate(tabId, url) {
-  const youtubeUrl = canonicalYouTubeWatchUrl(url);
-  if (!youtubeUrl) return false;
+  const pageVideoUrl = canonicalPageVideoUrl(url);
+  if (!pageVideoUrl) return false;
   return rememberCandidate(tabId, {
-    url: youtubeUrl,
+    url: pageVideoUrl,
     source: "tab:url",
-    score: scoreUrl(youtubeUrl) + 100,
+    score: scoreUrl(pageVideoUrl) + 100,
     at: Date.now()
   });
 }
@@ -540,7 +541,7 @@ function groupHasStrongPublicCandidate(group) {
     if (candidate.check && candidate.check.confirmed) return true;
     if (isMasterCandidate(candidate)) return true;
     if (candidateQualityHeight(candidate) >= 720) return true;
-    return ["youtube", "embed", "hls", "dash", "file"].includes(candidate.kind);
+    return ["youtube", "vkvideo", "embed", "hls", "dash", "file"].includes(candidate.kind);
   });
 }
 
@@ -549,7 +550,7 @@ function isWeakTechnicalGroup(group) {
     if (candidate.check && candidate.check.confirmed) return true;
     if (isMasterCandidate(candidate)) return true;
     if (candidateQualityHeight(candidate) >= 720) return true;
-    return ["youtube", "embed", "hls", "dash", "file"].includes(candidate.kind);
+    return ["youtube", "vkvideo", "embed", "hls", "dash", "file"].includes(candidate.kind);
   });
 }
 
@@ -577,6 +578,7 @@ function publicCandidateRank(candidate) {
   if (candidate.check && candidate.check.confirmed) return 0;
   if (isMasterCandidate(candidate)) return 1;
   const height = candidateQualityHeight(candidate);
+  if (candidate.kind === "vkvideo") return 2;
   if (candidate.kind === "youtube") return 2;
   if (height >= 1080) return 2;
   if (height >= 720) return 3;
@@ -641,7 +643,7 @@ async function scanPage(tabId) {
   tabState.error = "";
   notifyPopup(tabId);
   const tab = await chrome.tabs.get(tabId);
-  if (isYouTubePageUrl(tab && tab.url)) {
+  if (isSingleVideoPageUrl(tab && tab.url)) {
     const added = rememberCurrentPageCandidate(tabId, tab.url);
     return finishScan(tabId, { videos: added ? 1 : 0, embeds: 0, resources: 0 }, false);
   }
@@ -1332,6 +1334,8 @@ function candidateGroupKey(candidate) {
     const parsed = new URL(candidate.url);
     const youtubeId = youtubeVideoIdFromUrl(parsed);
     if (youtubeId) return `youtube:video:${youtubeId}`;
+    const vkId = vkVideoIdFromUrl(parsed);
+    if (vkId) return `vkvideo:video:${vkId}`;
     if (/googlevideo\.com$/i.test(parsed.hostname) || /videoplayback/i.test(parsed.pathname)) {
       return `youtube:playback:${parsed.searchParams.get("id") || "current"}`;
     }
@@ -1350,6 +1354,7 @@ function candidateGroupKey(candidate) {
 
 function candidateVariantLabel(candidate) {
   const text = `${candidate.url} ${candidate.path || ""}`;
+  if (candidate.kind === "vkvideo") return "current-video";
   if (candidate.kind === "youtube") return "current-video";
   if (/master|get-master-playlist|\/master(\/|$|\?)/i.test(text)) return "master";
   if (/sign-player/i.test(text)) return "sign-api";
@@ -1389,6 +1394,9 @@ function classifyUrl(url) {
   if (DIRECT_FILE_EXTENSIONS.test(url)) {
     kind = "file";
     label = "видеофайл";
+  } else if (canonicalVkVideoUrl(url)) {
+    kind = "vkvideo";
+    label = "VK Video";
   } else if (canonicalYouTubeWatchUrl(url)) {
     kind = "youtube";
     label = "YouTube";
@@ -1440,11 +1448,19 @@ function canonicalYouTubeWatchUrl(url) {
   }
 }
 
-function isYouTubePageUrl(url) {
+function canonicalPageVideoUrl(url) {
+  return canonicalYouTubeWatchUrl(url) || canonicalVkVideoUrl(url);
+}
+
+function isSingleVideoPageUrl(url) {
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
-    return host === "youtube.com" || host === "m.youtube.com" || host === "youtu.be";
+    return host === "youtube.com"
+      || host === "m.youtube.com"
+      || host === "youtu.be"
+      || host === "vkvideo.ru"
+      || host === "m.vkvideo.ru";
   } catch {
     return false;
   }
@@ -1468,6 +1484,24 @@ function youtubeVideoIdFromUrl(parsed) {
 function cleanYouTubeId(value) {
   const id = String(value || "").trim();
   return /^[a-zA-Z0-9_-]{6,20}$/.test(id) ? id : "";
+}
+
+function canonicalVkVideoUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const id = vkVideoIdFromUrl(parsed);
+    if (!id) return "";
+    return `https://vkvideo.ru/video${id}`;
+  } catch {
+    return "";
+  }
+}
+
+function vkVideoIdFromUrl(parsed) {
+  const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+  if (host !== "vkvideo.ru" && host !== "m.vkvideo.ru") return "";
+  const match = parsed.pathname.match(/^\/video(-?\d+_\d+)/i);
+  return match ? match[1] : "";
 }
 
 function normalizeVerifyInfo(info) {

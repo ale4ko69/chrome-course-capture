@@ -187,6 +187,7 @@ The list is curated:
 - Lower-quality variants are shown only when no `720p+` option exists for that video group.
 - Raw stream segments are hidden from the combo box when a better playlist/player option exists.
 - On a YouTube watch page, Course Capture uses only the central video from the current tab URL. Recommended videos and playlist items are not added to the combo box.
+- On a VKVideo page such as `vkvideo.ru/video-18761029_456241640`, Course Capture also uses only the current video URL and ignores recommended videos.
 - Downloads and verification run `yt-dlp` with `--no-playlist`, so a YouTube playlist URL cannot accidentally download the whole playlist.
 
 ## Recording Fallback

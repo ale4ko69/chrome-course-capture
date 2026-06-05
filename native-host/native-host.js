@@ -9,6 +9,7 @@ const DEFAULT_DOWNLOADS = path.join(ROOT, "downloads");
 const LOG_FILE = path.join(ROOT, "native-host.log");
 const TMP_DIR = path.join(ROOT, "tmp");
 const DEFAULT_MAX_DOWNLOAD_GB = 10;
+const YOUTUBE_FORMAT_SELECTOR = "bestvideo*[height>=720][height<=1080]+bestaudio/best[height>=720][height<=1080]/bestvideo*+bestaudio/best";
 const recordings = new Map();
 const downloadsByTab = new Map();
 const cancelledDownloads = new Set();
@@ -360,6 +361,7 @@ function remuxRecording(recording) {
 function buildArgs(message, cookieFile, outputBaseName, settings) {
   const outputTemplate = path.join(settings.downloadDir, `${outputBaseName}.%(ext)s`);
   const args = [
+    "--ignore-config",
     "--ffmpeg-location", settings.ffmpegDir,
     "--merge-output-format", settings.mergeFormat,
     "--restrict-filenames",
@@ -381,12 +383,17 @@ function buildArgs(message, cookieFile, outputBaseName, settings) {
     args.push("--referer", message.pageUrl);
   }
 
+  if (isYouTubeUrl(message.url)) {
+    args.push("--format", YOUTUBE_FORMAT_SELECTOR);
+  }
+
   args.push(message.url);
   return args;
 }
 
 function buildVerifyArgs(message, cookieFile, settings) {
   const args = [
+    "--ignore-config",
     "--ffmpeg-location", settings.ffmpegDir,
     "--dump-json",
     "--skip-download",
@@ -405,8 +412,22 @@ function buildVerifyArgs(message, cookieFile, settings) {
     args.push("--referer", message.pageUrl);
   }
 
+  if (isYouTubeUrl(message.url)) {
+    args.push("--format", YOUTUBE_FORMAT_SELECTOR);
+  }
+
   args.push(message.url);
   return args;
+}
+
+function isYouTubeUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+    return host === "youtube.com" || host === "m.youtube.com" || host === "youtu.be";
+  } catch {
+    return false;
+  }
 }
 
 function buildOutputBaseName(message) {

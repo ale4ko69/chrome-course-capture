@@ -61,7 +61,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "page-hook.js"
+        "page-hook.js",
+        "locales/*.json"
       ],
       "matches": [
         "<all_urls>"

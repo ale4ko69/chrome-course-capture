@@ -13,8 +13,12 @@ let scrollLock = null;
 let recordingBanner = null;
 let lastSelectedCropFallback = null;
 let scrollBlockerInstalled = false;
+let contentLanguage = "ru";
+let contentMessages = {};
+let contentMessagesPromise = null;
 
 injectPageHook();
+initContentI18n();
 
 window.addEventListener("message", event => {
   const data = event.data;
@@ -76,14 +80,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   if (message.type === "LOCK_RECORDING_VIEW") {
-    const crop = lockRecordingView();
-    sendResponse({ ok: true, crop });
-    return;
+    ensureContentMessages().then(() => {
+      const crop = lockRecordingView();
+      sendResponse({ ok: true, crop });
+    }).catch(error => {
+      sendResponse({ ok: false, error: error.message });
+    });
+    return true;
   }
   if (message.type === "SHOW_RECORDING_COUNTDOWN") {
-    showRecordingCountdown(message.seconds || 5);
-    sendResponse({ ok: true });
-    return;
+    ensureContentMessages().then(() => {
+      showRecordingCountdown(message.seconds || 5);
+      sendResponse({ ok: true });
+    }).catch(error => {
+      sendResponse({ ok: false, error: error.message });
+    });
+    return true;
   }
   if (message.type === "UNLOCK_RECORDING_VIEW") {
     unlockRecordingView();
@@ -106,6 +118,79 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", reportEmbeds, { once: true });
 } else {
   reportEmbeds();
+}
+
+function initContentI18n() {
+  contentMessagesPromise = ensureContentMessages();
+  if (chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local" || !changes.language) return;
+      contentLanguage = normalizeContentLanguage(changes.language.newValue);
+      contentMessagesPromise = loadContentMessages(contentLanguage).then(messages => {
+        contentMessages = messages;
+        return messages;
+      });
+    });
+  }
+}
+
+async function ensureContentMessages() {
+  if (contentMessagesPromise) return contentMessagesPromise;
+  contentMessagesPromise = chrome.storage.local.get({ language: "ru" })
+    .then(config => {
+      contentLanguage = normalizeContentLanguage(config.language);
+      return loadContentMessages(contentLanguage);
+    })
+    .then(messages => {
+      contentMessages = messages;
+      return messages;
+    })
+    .catch(error => {
+      console.warn("Course Capture could not load content locale", error);
+      contentMessages = {};
+      return contentMessages;
+    });
+  return contentMessagesPromise;
+}
+
+async function loadContentMessages(language) {
+  const normalized = normalizeContentLanguage(language);
+  const url = chrome.runtime.getURL(`locales/${normalized}.json`);
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    if (normalized !== "ru") return loadContentMessages("ru");
+    throw error;
+  }
+}
+
+function normalizeContentLanguage(language) {
+  return language === "en" ? "en" : "ru";
+}
+
+function contentT(key, params = {}) {
+  let value = String(key || "").split(".").reduce((current, part) => {
+    return current && Object.prototype.hasOwnProperty.call(current, part) ? current[part] : undefined;
+  }, contentMessages);
+  if (typeof value !== "string") value = contentFallbackMessage(key);
+  for (const [name, replacement] of Object.entries(params)) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
+
+function contentFallbackMessage(key) {
+  const fallback = {
+    "overlay.selectPlayer": "Course Capture: выбери плеер для записи. Esc - отмена.",
+    "overlay.cancelSelection": "Отменить выбор",
+    "overlay.recordingLocked": "Course Capture: идет запись. Прокрутка заблокирована.",
+    "overlay.stopRecording": "Остановить запись",
+    "overlay.stop": "Стоп",
+    "overlay.countdown": "Course Capture: нажми Play. Запись начнется через {seconds} сек."
+  };
+  return fallback[key] || key;
 }
 
 function scanPage() {
@@ -265,8 +350,10 @@ function cropResponse(item) {
 }
 
 async function selectPlayerRect() {
+  await ensureContentMessages();
+  lastSelectedCropFallback = null;
   const candidates = await getPlayerCropCandidates();
-  if (candidates.length <= 1) return Promise.resolve(cropResponse(candidates[0]));
+  if (!candidates.length) return Promise.resolve(null);
 
   return new Promise(resolve => {
     const overlay = document.createElement("div");
@@ -281,7 +368,7 @@ async function selectPlayerRect() {
       "pointer-events:auto",
       "background:rgba(0,0,0,0.18)"
     ].join(";");
-    hint.textContent = "Course Capture: выбери плеер для записи. Esc - отмена.";
+    hint.textContent = contentT("overlay.selectPlayer");
     hint.style.cssText = [
       "position:fixed",
       "left:16px",
@@ -297,7 +384,7 @@ async function selectPlayerRect() {
     const cancelButton = document.createElement("button");
     cancelButton.type = "button";
     cancelButton.textContent = "×";
-    cancelButton.title = "Отменить выбор";
+    cancelButton.title = contentT("overlay.cancelSelection");
     cancelButton.style.cssText = [
       "position:fixed",
       "right:16px",
@@ -622,11 +709,11 @@ function showRecordingBanner() {
     "pointer-events:auto"
   ].join(";");
   const text = document.createElement("span");
-  text.textContent = "Course Capture: идет запись. Прокрутка заблокирована.";
+  text.textContent = contentT("overlay.recordingLocked");
   const stopButton = document.createElement("button");
   stopButton.type = "button";
-  stopButton.textContent = "Стоп";
-  stopButton.title = "Остановить запись";
+  stopButton.textContent = contentT("overlay.stop");
+  stopButton.title = contentT("overlay.stopRecording");
   stopButton.style.cssText = [
     "border:0",
     "border-radius:5px",
@@ -651,7 +738,7 @@ function showRecordingBanner() {
 function showRecordingCountdown(seconds) {
   const banner = document.createElement("div");
   let left = Math.max(1, Number(seconds) || 5);
-  banner.textContent = `Course Capture: нажми Play. Запись начнется через ${left} сек.`;
+  banner.textContent = contentT("overlay.countdown", { seconds: left });
   banner.style.cssText = [
     "position:fixed",
     "left:50%",
@@ -674,7 +761,7 @@ function showRecordingCountdown(seconds) {
       banner.remove();
       return;
     }
-    banner.textContent = `Course Capture: нажми Play. Запись начнется через ${left} сек.`;
+    banner.textContent = contentT("overlay.countdown", { seconds: left });
   }, 1000);
 }
 

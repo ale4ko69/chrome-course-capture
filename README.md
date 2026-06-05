@@ -192,8 +192,10 @@ If direct download is not available or not trustworthy, use `Запись вкл
 
 Course Capture can:
 
-- select a player area on the page;
-- lock the visible view while recording;
+- detect and highlight a player area or iframe before recording;
+- let you confirm the correct frame so the recording follows the video area instead of the whole page;
+- lock scrolling after confirmation, show a 5-second countdown, and start recording from the same viewport position;
+- keep the visible view locked while recording;
 - capture the current tab with audio;
 - save a `.webm` file;
 - remux the recording with `ffmpeg` when available.

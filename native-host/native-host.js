@@ -104,7 +104,20 @@ async function handleMessage(message) {
   });
 
   if (Array.isArray(message.cookies) && message.cookies.length) {
-    await runYtDlp(message, { mode: "extension-cookies", final: true, settings });
+    const first = await runYtDlp(message, { mode: "extension-cookies", final: !isYouTubeUrl(message.url), settings });
+    if (!first.ok && isYouTubeUrl(message.url) && isRequestedFormatUnavailable(first.output)) {
+      appendLog("RETRY YouTube without extension cookies because requested format was unavailable");
+      writeMessage({
+        requestId: message.requestId,
+        tabId: message.tabId,
+        ok: true,
+        event: "progress",
+        message: "YouTube не отдал выбранный формат с cookies; повторяю без cookies."
+      });
+      await runYtDlp(message, { mode: "no-cookies", final: true, settings });
+      return;
+    }
+    if (!first.ok) writeDone(message, false, first.code, first.output);
     return;
   }
 
@@ -575,13 +588,26 @@ function runYtDlp(message, options) {
   });
 }
 
-function runYtDlpVerify(message, settings) {
+async function runYtDlpVerify(message, settings) {
+  const first = await runYtDlpVerifyOnce(message, settings, "extension-cookies");
+  if (!first.ok && isYouTubeUrl(message.url) && isRequestedFormatUnavailable(first.error || "")) {
+    appendLog("VERIFY_RETRY YouTube without extension cookies because requested format was unavailable");
+    return runYtDlpVerifyOnce({ ...message, cookies: [], pageUrl: "" }, settings, "no-cookies");
+  }
+  return first;
+}
+
+function runYtDlpVerifyOnce(message, settings, mode) {
   return new Promise(resolve => {
     const cookieFile = Array.isArray(message.cookies) && message.cookies.length ? writeCookiesFile(message) : "";
     const args = buildVerifyArgs(message, cookieFile, settings);
+    if (mode === "no-cookies") {
+      const cookieIndex = args.indexOf("--cookies-from-browser");
+      if (cookieIndex >= 0) args.splice(cookieIndex, 2);
+    }
     let output = "";
     let settled = false;
-    appendLog(`VERIFY ${new Date().toISOString()} ${message.url}`);
+    appendLog(`VERIFY ${new Date().toISOString()} ${mode || "default"} ${message.url}`);
     appendLog(`VERIFY_CMD ${settings.ytDlpPath} ${args.map(quoteArg).join(" ")}`);
 
     const child = spawn(settings.ytDlpPath, args, {
@@ -630,6 +656,10 @@ function runYtDlpVerify(message, settings) {
       resolve({ ok: true, info });
     });
   });
+}
+
+function isRequestedFormatUnavailable(output) {
+  return /Requested format is not available/i.test(String(output || ""));
 }
 
 function startDownloadSizeGuard(child, message, outputBaseName, settings, onLimit) {

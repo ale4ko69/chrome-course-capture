@@ -569,7 +569,10 @@ function localizeStatus(status) {
     "Сначала нажми Проверить и подтверди, что это нужное видео.": "status.verifyFirst",
     "Пока не нашел URL для скачивания.": "status.noCandidate",
     "Останавливаю скачивание yt-dlp...": "status.stoppingDownload",
-    "Скачивание остановлено.": "status.downloadStopped"
+    "Скачивание остановлено.": "status.downloadStopped",
+    "Ищу область плеера для записи...": "status.findingRecordingArea",
+    "Выбор области записи отменен.": "status.recordingAreaCancelled",
+    "Плеер выбран. Нажми Play на видео, запись начнется через 5 секунд.": "status.playerSelectedCountdown"
   };
   if (exact[value]) return t(exact[value]);
   let match = value.match(/^Найдено вариантов для проверки: (\d+)\./);

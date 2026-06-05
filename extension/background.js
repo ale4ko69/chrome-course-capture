@@ -41,12 +41,7 @@ chrome.webRequest.onBeforeRequest.addListener(
     if (details.tabId < 0 || !details.url || !isMediaCandidate(details.url)) {
       return;
     }
-    rememberCandidate(details.tabId, {
-      url: details.url,
-      source: `network:${details.type}`,
-      score: scoreUrl(details.url),
-      at: Date.now()
-    });
+    rememberNetworkCandidate(details.tabId, details.url, details.type);
   },
   { urls: ["<all_urls>"] }
 );
@@ -82,6 +77,20 @@ async function handleMessage(message, sender) {
     tabState.lastTitle = message.title || tabState.lastTitle;
     tabState.playbackObserved = true;
     let changedAny = false;
+    const youtubeUrl = canonicalYouTubeWatchUrl(sender.tab && sender.tab.url);
+    if (youtubeUrl) {
+      changedAny = rememberCandidate(tabId, {
+        url: youtubeUrl,
+        source: "tab:url",
+        score: scoreUrl(youtubeUrl) + 100,
+        at: Date.now()
+      }) || changedAny;
+      if (changedAny && tabState.armed && tabState.playbackObserved && !tabState.busy) {
+        scheduleAutoCapture(tabId);
+      }
+      return { ok: true };
+    }
+    if (isYouTubePageUrl(sender.tab && sender.tab.url)) return { ok: true };
     if (message.url) {
       changedAny = rememberCandidate(tabId, {
         url: message.url,
@@ -130,6 +139,20 @@ async function handleMessage(message, sender) {
     tabState.lastTitle = message.title || tabState.lastTitle;
     tabState.playlistObserved = true;
     let changedAny = false;
+    const youtubeUrl = canonicalYouTubeWatchUrl(sender.tab && sender.tab.url);
+    if (youtubeUrl) {
+      changedAny = rememberCandidate(tabId, {
+        url: youtubeUrl,
+        source: "tab:url",
+        score: scoreUrl(youtubeUrl) + 100,
+        at: Date.now()
+      }) || changedAny;
+      if (changedAny && tabState.armed && !tabState.busy) {
+        scheduleAutoCapture(tabId, 300);
+      }
+      return { ok: true };
+    }
+    if (isYouTubePageUrl(sender.tab && sender.tab.url)) return { ok: true };
     if (message.url) {
       changedAny = rememberCandidate(tabId, {
         url: message.url,
@@ -156,6 +179,7 @@ async function handleMessage(message, sender) {
 
   if (message.type === "GET_STATE") {
     const tab = await getActiveTab();
+    rememberCurrentPageCandidate(tab.id, tab.url);
     return { ok: true, tabId: tab.id, state: publicTabState(tab.id), settings: await getSettings() };
   }
 
@@ -319,6 +343,7 @@ function isMediaCandidate(url) {
 }
 
 function scoreUrl(url) {
+  if (canonicalYouTubeWatchUrl(url)) return 170;
   if (/\/api\/playlist\/master\/|get-master-playlist/i.test(url)) return 180;
   if (/\/api\/playlist\/media\/|get-media-playlist/i.test(url)) return 145;
   if (HLS_EXTENSION.test(url)) return 160;
@@ -395,6 +420,42 @@ function rememberCandidate(tabId, candidate) {
   return true;
 }
 
+async function rememberNetworkCandidate(tabId, url, type) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const youtubeUrl = canonicalYouTubeWatchUrl(tab && tab.url);
+    if (youtubeUrl) {
+      rememberCandidate(tabId, {
+        url: youtubeUrl,
+        source: "tab:url",
+        score: scoreUrl(youtubeUrl) + 100,
+        at: Date.now()
+      });
+      return;
+    }
+    if (isYouTubePageUrl(tab && tab.url)) return;
+  } catch (_) {
+    // Fall through to the observed network URL if tab metadata is unavailable.
+  }
+  rememberCandidate(tabId, {
+    url,
+    source: `network:${type}`,
+    score: scoreUrl(url),
+    at: Date.now()
+  });
+}
+
+function rememberCurrentPageCandidate(tabId, url) {
+  const youtubeUrl = canonicalYouTubeWatchUrl(url);
+  if (!youtubeUrl) return false;
+  return rememberCandidate(tabId, {
+    url: youtubeUrl,
+    source: "tab:url",
+    score: scoreUrl(youtubeUrl) + 100,
+    at: Date.now()
+  });
+}
+
 function publicTabState(tabId) {
   const tabState = getTabState(tabId);
   return {
@@ -462,14 +523,34 @@ function publicCandidates(candidates) {
   }
 
   const result = [];
+  const hasStrongGroup = groups.some(key => groupHasStrongPublicCandidate(byKey.get(key)));
   for (const key of groups) {
     const group = byKey.get(key);
+    if (hasStrongGroup && isWeakTechnicalGroup(group)) continue;
     const selected = selectPublicCandidatesForGroup(group);
     for (const candidate of selected) {
       if (!result.some(item => item.url === candidate.url)) result.push(candidate);
     }
   }
   return result.slice(0, 30);
+}
+
+function groupHasStrongPublicCandidate(group) {
+  return group.some(candidate => {
+    if (candidate.check && candidate.check.confirmed) return true;
+    if (isMasterCandidate(candidate)) return true;
+    if (candidateQualityHeight(candidate) >= 720) return true;
+    return ["youtube", "embed", "hls", "dash", "file"].includes(candidate.kind);
+  });
+}
+
+function isWeakTechnicalGroup(group) {
+  return !group.some(candidate => {
+    if (candidate.check && candidate.check.confirmed) return true;
+    if (isMasterCandidate(candidate)) return true;
+    if (candidateQualityHeight(candidate) >= 720) return true;
+    return ["youtube", "embed", "hls", "dash", "file"].includes(candidate.kind);
+  });
 }
 
 function selectPublicCandidatesForGroup(group) {
@@ -496,6 +577,7 @@ function publicCandidateRank(candidate) {
   if (candidate.check && candidate.check.confirmed) return 0;
   if (isMasterCandidate(candidate)) return 1;
   const height = candidateQualityHeight(candidate);
+  if (candidate.kind === "youtube") return 2;
   if (height >= 1080) return 2;
   if (height >= 720) return 3;
   if (candidate.kind === "embed") return 4;
@@ -558,6 +640,11 @@ async function scanPage(tabId) {
   tabState.status = "Сканирую страницу без перезагрузки...";
   tabState.error = "";
   notifyPopup(tabId);
+  const tab = await chrome.tabs.get(tabId);
+  if (isYouTubePageUrl(tab && tab.url)) {
+    const added = rememberCurrentPageCandidate(tabId, tab.url);
+    return finishScan(tabId, { videos: added ? 1 : 0, embeds: 0, resources: 0 }, false);
+  }
   try {
     const response = await chrome.tabs.sendMessage(tabId, { type: "SCAN_PAGE" });
     return finishScan(tabId, response, false);
@@ -1237,6 +1324,11 @@ function candidateVideoNumber(candidate, candidates) {
 function candidateGroupKey(candidate) {
   try {
     const parsed = new URL(candidate.url);
+    const youtubeId = youtubeVideoIdFromUrl(parsed);
+    if (youtubeId) return `youtube:video:${youtubeId}`;
+    if (/googlevideo\.com$/i.test(parsed.hostname) || /videoplayback/i.test(parsed.pathname)) {
+      return `youtube:playback:${parsed.searchParams.get("id") || "current"}`;
+    }
     const parts = parsed.pathname.split("/").filter(Boolean);
     const playlistIndex = parts.findIndex(part => /^(master|media|get-master-playlist|get-media-playlist)$/i.test(part));
     if (playlistIndex >= 0 && parts[playlistIndex + 1]) {
@@ -1252,6 +1344,7 @@ function candidateGroupKey(candidate) {
 
 function candidateVariantLabel(candidate) {
   const text = `${candidate.url} ${candidate.path || ""}`;
+  if (candidate.kind === "youtube") return "current-video";
   if (/master|get-master-playlist|\/master(\/|$|\?)/i.test(text)) return "master";
   if (/sign-player/i.test(text)) return "sign-api";
   const quality = text.match(/(?:\/|_|-)(240|360|480|540|720|1080|1440|2160)(?:p)?(?:\/|\.|_|-|\?|$)/i);
@@ -1290,6 +1383,9 @@ function classifyUrl(url) {
   if (DIRECT_FILE_EXTENSIONS.test(url)) {
     kind = "file";
     label = "видеофайл";
+  } else if (canonicalYouTubeWatchUrl(url)) {
+    kind = "youtube";
+    label = "YouTube";
   } else if (HLS_EXTENSION.test(url)) {
     kind = "hls";
     label = "HLS поток (.m3u8)";
@@ -1325,6 +1421,47 @@ function classifyUrl(url) {
     host: parsed ? parsed.host : "",
     path: parsed ? parsed.pathname.split("/").filter(Boolean).slice(-2).join("/") : ""
   };
+}
+
+function canonicalYouTubeWatchUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const id = youtubeVideoIdFromUrl(parsed);
+    if (!id) return "";
+    return `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+  } catch {
+    return "";
+  }
+}
+
+function isYouTubePageUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+    return host === "youtube.com" || host === "m.youtube.com" || host === "youtu.be";
+  } catch {
+    return false;
+  }
+}
+
+function youtubeVideoIdFromUrl(parsed) {
+  const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+  if (host === "youtube.com" || host === "m.youtube.com") {
+    if (parsed.pathname === "/watch") return cleanYouTubeId(parsed.searchParams.get("v"));
+    const embedMatch = parsed.pathname.match(/^\/embed\/([^/?#]+)/i);
+    if (embedMatch) return cleanYouTubeId(embedMatch[1]);
+    const shortsMatch = parsed.pathname.match(/^\/shorts\/([^/?#]+)/i);
+    if (shortsMatch) return cleanYouTubeId(shortsMatch[1]);
+  }
+  if (host === "youtu.be") {
+    return cleanYouTubeId(parsed.pathname.split("/").filter(Boolean)[0]);
+  }
+  return "";
+}
+
+function cleanYouTubeId(value) {
+  const id = String(value || "").trim();
+  return /^[a-zA-Z0-9_-]{6,20}$/.test(id) ? id : "";
 }
 
 function normalizeVerifyInfo(info) {

@@ -119,6 +119,7 @@
     "variants": {
       "player": "player",
       "file": "file",
+      "currentVideo": "current video",
       "source": "source"
     }
   },

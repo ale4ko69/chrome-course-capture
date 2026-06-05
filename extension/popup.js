@@ -396,6 +396,7 @@ function candidateOptionLabel(index, candidate, candidates) {
 }
 
 function candidateTypeLabel(candidate) {
+  if (candidate.kind === "youtube") return "YouTube";
   if (candidate.kind === "embed") return t("candidate.types.player");
   if (candidate.kind === "hls") return "HLS PL";
   if (candidate.kind === "dash") return "DASH";
@@ -417,6 +418,11 @@ function candidateVideoNumber(candidate, candidates) {
 function candidateGroupKey(candidate) {
   try {
     const parsed = new URL(candidate.url);
+    const youtubeId = youtubeVideoIdFromUrl(parsed);
+    if (youtubeId) return `youtube:video:${youtubeId}`;
+    if (/googlevideo\.com$/i.test(parsed.hostname) || /videoplayback/i.test(parsed.pathname)) {
+      return `youtube:playback:${parsed.searchParams.get("id") || "current"}`;
+    }
     const parts = parsed.pathname.split("/").filter(Boolean);
     const playlistIndex = parts.findIndex(part => /^(master|media|get-master-playlist|get-media-playlist)$/i.test(part));
     if (playlistIndex >= 0 && parts[playlistIndex + 1]) {
@@ -432,6 +438,7 @@ function candidateGroupKey(candidate) {
 
 function candidateVariantLabel(candidate) {
   const text = `${candidate.url} ${candidate.path || ""}`;
+  if (candidate.kind === "youtube") return t("candidate.variants.currentVideo");
   if (/master|get-master-playlist|\/master(\/|$|\?)/i.test(text)) return "master";
   if (/sign-player/i.test(text)) return "sign/API";
   const quality = text.match(/(?:\/|_|-)(240|360|480|540|720|1080|1440|2160)(?:p)?(?:\/|\.|_|-|\?|$)/i);
@@ -446,6 +453,26 @@ function candidateVariantLabel(candidate) {
   if (candidate.kind === "embed") return t("candidate.variants.player");
   if (candidate.kind === "file") return t("candidate.variants.file");
   return candidate.label || t("candidate.variants.source");
+}
+
+function youtubeVideoIdFromUrl(parsed) {
+  const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+  if (host === "youtube.com" || host === "m.youtube.com") {
+    if (parsed.pathname === "/watch") return cleanYouTubeId(parsed.searchParams.get("v"));
+    const embedMatch = parsed.pathname.match(/^\/embed\/([^/?#]+)/i);
+    if (embedMatch) return cleanYouTubeId(embedMatch[1]);
+    const shortsMatch = parsed.pathname.match(/^\/shorts\/([^/?#]+)/i);
+    if (shortsMatch) return cleanYouTubeId(shortsMatch[1]);
+  }
+  if (host === "youtu.be") {
+    return cleanYouTubeId(parsed.pathname.split("/").filter(Boolean)[0]);
+  }
+  return "";
+}
+
+function cleanYouTubeId(value) {
+  const id = String(value || "").trim();
+  return /^[a-zA-Z0-9_-]{6,20}$/.test(id) ? id : "";
 }
 
 function displayCandidatePath(candidate) {

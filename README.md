@@ -176,7 +176,8 @@ The popup uses labels such as:
 2. HLS PL - видео 1 - HD 720p
 3. HLS PL - видео 2 - FullHD 1080p
 4. плеер - видео 3 - player
-5. HLS PL - видео 3 - 480p (нет 720+)
+5. YouTube - видео 4 - текущее видео
+6. HLS PL - видео 3 - 480p (нет 720+)
 ```
 
 The list is curated:
@@ -185,6 +186,8 @@ The list is curated:
 - `720p` and higher variants are preferred.
 - Lower-quality variants are shown only when no `720p+` option exists for that video group.
 - Raw stream segments are hidden from the combo box when a better playlist/player option exists.
+- On a YouTube watch page, Course Capture uses only the central video from the current tab URL. Recommended videos and playlist items are not added to the combo box.
+- Downloads and verification run `yt-dlp` with `--no-playlist`, so a YouTube playlist URL cannot accidentally download the whole playlist.
 
 ## Recording Fallback
 

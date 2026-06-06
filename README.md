@@ -2,7 +2,7 @@
 
 Video Course Capture is a Chrome Manifest V3 extension plus a Windows native messaging host for capturing course videos for personal offline use.
 
-It detects candidate video sources on the current page, lets the user verify the selected source with `yt-dlp`, downloads confirmed sources, and can fall back to recording the current tab with audio when a direct download is not reliable.
+It detects candidate video sources on the current page, lets the user verify the selected source with `yt-dlp`, downloads confirmed sources, and can also record a selected page player with audio when a direct download is not reliable. If a page has multiple players or iframes, Video Course Capture lets the user choose the exact player area before recording.
 
 ## What It Does
 
@@ -15,7 +15,8 @@ It detects candidate video sources on the current page, lets the user verify the
 - Blocks manual downloads until the selected candidate is confirmed.
 - Sends Chrome cookies through the extension cookies API into a temporary Netscape cookie file for `yt-dlp`.
 - Uses `ffmpeg` through `yt-dlp` for merging/remuxing downloaded media.
-- Can record the current tab with audio as a fallback using Chrome `tabCapture` and an offscreen document.
+- Can record a selected player area or iframe with audio as a fallback using Chrome `tabCapture` and an offscreen document.
+- Lets the user choose the exact player to record when a page contains multiple players or iframes.
 - Stops active downloads by killing the full process tree on Windows, including child `ffmpeg` processes.
 
 ## Verified Sources

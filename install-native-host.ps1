@@ -1,4 +1,6 @@
 # Video Course Capture
+# Purpose: Registers the Windows Chrome native messaging host for the current unpacked extension ID.
+# Most to know: this script writes the extension-specific native host manifest path and allowed origin.
 # Developed and maintained by Alexey Kagansky
 # Copyright (c) 2026 Alexey Kagansky
 # Repository: https://github.com/ale4ko69/chrome-course-capture

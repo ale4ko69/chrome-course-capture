@@ -1,4 +1,6 @@
 // Video Course Capture
+// Purpose: Offscreen document recorder that receives a Chrome tabCapture stream, optionally crops it to the selected player, and streams chunks to the native host.
+// Most to know: this file is isolated from the popup; it exists because Manifest V3 service workers cannot hold long-running MediaRecorder work directly.
 // Developed and maintained by Alexey Kagansky
 // Copyright (c) 2026 Alexey Kagansky
 // Repository: https://github.com/ale4ko69/chrome-course-capture
@@ -40,12 +42,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   handleMessage(message).then(sendResponse).catch(error => {
-    sendStatus(currentTabId, `Ошибка записи: ${error.message}`, false, error.message);
+    sendStatus(currentTabId, `Recording error: ${error.message}`, false, error.message);
     sendResponse({ ok: false, error: error.message });
   });
   return true;
 });
 
+
+/**
+ * Routes an incoming command to the correct handler and returns a response object for the caller.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function handleMessage(message) {
   if (message.type === "START_OFFSCREEN_RECORDING") {
     await startRecording(message.tabId, message.streamId, message.title, message.crop);
@@ -58,6 +66,15 @@ async function handleMessage(message) {
   return { ok: false, error: "Unknown offscreen message" };
 }
 
+
+/**
+ * Initializes a file-backed recording session before MediaRecorder chunks start arriving.
+ * @param {*} tabId Input used by this step.
+ * @param {*} streamId Input used by this step.
+ * @param {*} title Input used by this step.
+ * @param {*} crop Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function startRecording(tabId, streamId, title, crop) {
   if (recorder && recorder.state !== "inactive") {
     throw new Error("Recorder is already running");
@@ -120,15 +137,23 @@ async function startRecording(tabId, streamId, title, crop) {
         .then(() => sendChunk(event.data, index))
         .catch(error => {
           chunkError = error;
-          sendStatus(currentTabId, `Ошибка записи чанка: ${error.message}`, true, error.message);
+          sendStatus(currentTabId, `Recording chunk error: ${error.message}`, true, error.message);
         });
     }
   };
   recorder.onstop = finishRecording;
   recorder.start(1000);
-  sendStatus(tabId, crop && crop.rect ? "Идет запись области плеера вместе с аудио..." : "Идет запись текущей вкладки вместе с аудио...", true);
+  sendStatus(tabId, crop && crop.rect ? "Recording the player area with audio..." : "Recording the current tab with audio...", true);
 }
 
+
+/**
+ * Documents the create cropped stream helper.
+ * @param {*} inputStream Input used by this step.
+ * @param {*} crop Input used by this step.
+ * @param {*} audioSource Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function createCroppedStream(inputStream, crop, audioSource) {
   sourceVideo = document.createElement("video");
   sourceVideo.muted = true;
@@ -149,7 +174,7 @@ async function createCroppedStream(inputStream, crop, audioSource) {
   const sourceHeight = clamp(Math.round((Number(rect.height) || sourceVideo.videoHeight) * scaleY), 1, sourceVideo.videoHeight - sourceY);
   sendStatus(
     currentTabId,
-    `Кроп записи: ${Math.round(Number(rect.width) || 0)}x${Math.round(Number(rect.height) || 0)} CSS -> ${sourceWidth}x${sourceHeight} видео.`,
+    `Recording crop: ${Math.round(Number(rect.width) || 0)}x${Math.round(Number(rect.height) || 0)} CSS -> ${sourceWidth}x${sourceHeight} video.`,
     true
   );
 
@@ -178,6 +203,11 @@ async function createCroppedStream(inputStream, crop, audioSource) {
   ]);
 }
 
+
+/**
+ * Starts checking whether the recorded video stream has visually frozen.
+ * @returns {*} Result used by the caller.
+ */
 function startFreezeMonitor() {
   sampleCanvas = document.createElement("canvas");
   sampleCanvas.width = 32;
@@ -189,6 +219,11 @@ function startFreezeMonitor() {
   freezeTimer = setInterval(checkForFrozenStream, FREEZE_CHECK_MS);
 }
 
+
+/**
+ * Compares video frames and audio level to detect stuck capture.
+ * @returns {*} Result used by the caller.
+ */
 function checkForFrozenStream() {
   if (!recorder || recorder.state !== "recording" || !cropCanvas || !sampleContext) return;
   if (Date.now() - freezeStartedAt < FREEZE_GRACE_MS) return;
@@ -215,11 +250,18 @@ function checkForFrozenStream() {
   }
 
   if (Date.now() - freezeSince >= FREEZE_STOP_AFTER_MS) {
-    sendStatus(currentTabId, "Похоже, поток завис: картинка не меняется и звук молчит. Останавливаю запись текущего куска...", true);
-    stopRecording(currentTabId, "Поток завис. Сохраняю текущий кусок...");
+    sendStatus(currentTabId, "The stream appears frozen: video is not changing and audio is silent. Stopping the current recording chunk...", true);
+    stopRecording(currentTabId, "Stream appears frozen. Saving the current chunk...");
   }
 }
 
+
+/**
+ * Calculates average RGB delta between two canvas snapshots.
+ * @param {*} current Input used by this step.
+ * @param {*} previous Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function averagePixelDelta(current, previous) {
   let total = 0;
   for (let index = 0; index < current.length; index += 4) {
@@ -230,6 +272,11 @@ function averagePixelDelta(current, previous) {
   return total / ((current.length / 4) * 3);
 }
 
+
+/**
+ * Measures current audio energy for freeze detection.
+ * @returns {*} Result used by the caller.
+ */
 function getAudioRms() {
   if (!freezeAnalyser || !freezeAudioData) return 1;
   freezeAnalyser.getByteTimeDomainData(freezeAudioData);
@@ -241,10 +288,16 @@ function getAudioRms() {
   return Math.sqrt(sum / freezeAudioData.length);
 }
 
+
+/**
+ * Waits until the captured video reports dimensions.
+ * @param {*} video Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function waitForVideoSize(video) {
   if (video.videoWidth && video.videoHeight) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Не смог получить размер потока вкладки.")), 5000);
+    const timeout = setTimeout(() => reject(new Error("Could not read the tab stream size.")), 5000);
     video.onloadedmetadata = () => {
       clearTimeout(timeout);
       resolve();
@@ -252,23 +305,35 @@ function waitForVideoSize(video) {
   });
 }
 
+
+/**
+ * Completes the current recording, remuxes it when possible, and reports the saved file.
+ * @param {*} tabId Input used by this step.
+ * @param {*} reason Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function stopRecording(tabId, reason = "") {
   const statusTabId = typeof currentTabId === "number" ? currentTabId : tabId;
   if (!recorder || recorder.state === "inactive") {
-    sendStatus(statusTabId, "Запись уже не идет.", false);
+    sendStatus(statusTabId, "Recording is not active.", false);
     return;
   }
   if (freezeTimer) {
     clearInterval(freezeTimer);
     freezeTimer = 0;
   }
-  sendStatus(statusTabId, reason || "Останавливаю запись и сохраняю файл...", true);
+  sendStatus(statusTabId, reason || "Stopping recording and saving the file...", true);
   if (recorder.state === "recording") {
     recorder.requestData();
   }
   recorder.stop();
 }
 
+
+/**
+ * Stops tracks, flushes chunks, and reports completion.
+ * @returns {*} Result used by the caller.
+ */
 async function finishRecording() {
   const tabId = currentTabId;
   try {
@@ -284,15 +349,20 @@ async function finishRecording() {
     if (!response || !response.ok) {
       throw new Error(response && response.error ? response.error : "Native recording stop failed");
     }
-    const message = response.response && response.response.message || `Запись сохранена: ${currentFilename}`;
+    const message = response.response && response.response.message || `Recording saved: ${currentFilename}`;
     sendStatus(tabId, message, false);
   } catch (error) {
-    sendStatus(tabId, `Не смог сохранить запись: ${error.message}`, false, error.message);
+    sendStatus(tabId, `Could not save recording: ${error.message}`, false, error.message);
   } finally {
     cleanup();
   }
 }
 
+
+/**
+ * Stops recorder resources and resets offscreen state.
+ * @returns {*} Result used by the caller.
+ */
 function cleanup() {
   if (stream) {
     for (const track of stream.getTracks()) track.stop();
@@ -333,10 +403,25 @@ function cleanup() {
   chunkIndex = 0;
 }
 
+
+/**
+ * Constrains a number to a min/max range.
+ * @param {*} value Input used by this step.
+ * @param {*} min Input used by this step.
+ * @param {*} max Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+
+/**
+ * Sends one recorded blob chunk to the background/native-host pipeline.
+ * @param {*} blob Input used by this step.
+ * @param {*} index Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function sendChunk(blob, index) {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const data = bytesToBase64(bytes);
@@ -353,6 +438,12 @@ async function sendChunk(blob, index) {
   }
 }
 
+
+/**
+ * Converts binary data into base64 for native messaging transport.
+ * @param {*} bytes Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function bytesToBase64(bytes) {
   let binary = "";
   const chunkSize = 0x8000;
@@ -363,6 +454,11 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
+
+/**
+ * Selects the best MediaRecorder MIME type supported by the browser.
+ * @returns {*} Result used by the caller.
+ */
 function pickMimeType() {
   const types = [
     "video/webm;codecs=vp9,opus",
@@ -372,6 +468,15 @@ function pickMimeType() {
   return types.find(type => MediaRecorder.isTypeSupported(type)) || "";
 }
 
+
+/**
+ * Sends recorder status back to the background service worker.
+ * @param {*} tabId Input used by this step.
+ * @param {*} status Input used by this step.
+ * @param {*} recording Input used by this step.
+ * @param {*} error Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function sendStatus(tabId, status, recording, error = "") {
   if (typeof tabId !== "number") return;
   chrome.runtime.sendMessage({
@@ -383,6 +488,12 @@ function sendStatus(tabId, status, recording, error = "") {
   }).catch(() => {});
 }
 
+
+/**
+ * Removes characters that are unsafe in Windows filenames.
+ * @param {*} value Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function sanitizeFileName(value) {
   return String(value || "course-recording")
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
@@ -391,6 +502,11 @@ function sanitizeFileName(value) {
     .slice(0, 120) || "course-recording";
 }
 
+
+/**
+ * Formats a timestamp for filenames and logs.
+ * @returns {*} Result used by the caller.
+ */
 function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 }

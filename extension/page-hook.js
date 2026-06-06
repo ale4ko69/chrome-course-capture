@@ -1,4 +1,6 @@
 // Video Course Capture
+// Purpose: Page-context hook that observes media-related browser APIs and posts discovered URLs back to the content script.
+// Most to know: this file runs in the webpage JavaScript world, so it only reports signals and does not call privileged Chrome extension APIs.
 // Developed and maintained by Alexey Kagansky
 // Copyright (c) 2026 Alexey Kagansky
 // Repository: https://github.com/ale4ko69/chrome-course-capture

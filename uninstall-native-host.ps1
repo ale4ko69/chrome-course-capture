@@ -1,4 +1,6 @@
 # Video Course Capture
+# Purpose: Removes Video Course Capture native messaging host registry entries from the current Windows user.
+# Most to know: this also removes the old legacy host id so renamed installs do not leave stale registry keys.
 # Developed and maintained by Alexey Kagansky
 # Copyright (c) 2026 Alexey Kagansky
 # Repository: https://github.com/ale4ko69/chrome-course-capture

@@ -1,5 +1,7 @@
 @echo off
 REM Video Course Capture
+REM Purpose: Launches the Node.js native host entrypoint for Chrome native messaging.
+REM Most to know: Chrome executes this command through the registered native host manifest.
 REM Developed and maintained by Alexey Kagansky
 REM Copyright (c) 2026 Alexey Kagansky
 REM Repository: https://github.com/ale4ko69/chrome-course-capture

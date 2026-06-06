@@ -1,5 +1,7 @@
 /*
  * Video Course Capture
+ * Purpose: Popup layout, controls, responsive sizing, source list styling, settings panel, and version footer.
+ * Most to know: popup.html is a fixed Chrome extension window, so stable dimensions and non-overlapping controls matter here.
  * Developed and maintained by Alexey Kagansky
  * Copyright (c) 2026 Alexey Kagansky
  * Repository: https://github.com/ale4ko69/chrome-course-capture
@@ -57,7 +59,8 @@ h2 {
 
 .version-footer {
   flex: 0 0 auto;
-  margin-top: 6px;
+  margin-top: auto;
+  padding-top: 6px;
   color: #7a8494;
   font-size: 11px;
   line-height: 1.2;
@@ -356,12 +359,13 @@ h2 {
 .source-picker {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) 76px 86px 34px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px;
   gap: 7px;
   min-width: 0;
 }
 
 #sourceSelect {
+  grid-column: 1 / -1;
   appearance: none;
   -webkit-appearance: none;
   width: 100%;

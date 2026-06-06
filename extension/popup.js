@@ -1,4 +1,6 @@
 // Video Course Capture
+// Purpose: Popup controller for status rendering, settings, language switching, source verification, downloads, and recording commands.
+// Most to know: this file is UI-only; it sends commands to background.js and renders returned state instead of talking to yt-dlp directly.
 // Developed and maintained by Alexey Kagansky
 // Copyright (c) 2026 Alexey Kagansky
 // Repository: https://github.com/ale4ko69/chrome-course-capture
@@ -66,6 +68,11 @@ chrome.runtime.onMessage.addListener(message => {
   }
 });
 
+
+/**
+ * Initializes UI state, translations, event handlers, settings, and the first render.
+ * @returns {*} Result used by the caller.
+ */
 async function init() {
   try {
     const config = await chrome.storage.local.get(["language"]);
@@ -106,6 +113,11 @@ async function init() {
   }
 }
 
+
+/**
+ * Saves the selected UI language and refreshes visible translated text.
+ * @returns {*} Result used by the caller.
+ */
 async function changeLanguage() {
   currentLanguage = normalizeLanguage(elements.language.value);
   messages = await loadMessages(currentLanguage);
@@ -114,10 +126,21 @@ async function changeLanguage() {
   if (lastState) render(lastState);
 }
 
+
+/**
+ * Maps unknown language values to the supported language codes.
+ * @param {*} language Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function normalizeLanguage(language) {
   return language === "en" ? "en" : "ru";
 }
 
+
+/**
+ * Chooses the initial UI language from Chrome and browser/system locale hints.
+ * @returns {*} Result used by the caller.
+ */
 function detectDefaultLanguage() {
   const locales = [
     chrome.i18n && typeof chrome.i18n.getUILanguage === "function" ? chrome.i18n.getUILanguage() : "",
@@ -127,11 +150,23 @@ function detectDefaultLanguage() {
   return locales.some(isRussianLocale) ? "ru" : "en";
 }
 
+
+/**
+ * Checks whether a locale value should default to Russian UI text.
+ * @param {*} locale Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function isRussianLocale(locale) {
   const language = String(locale || "").trim().toLowerCase().split(/[-_]/)[0];
   return ["ru", "be", "uk", "kk", "ky", "uz", "tg", "az", "hy", "ka", "mo"].includes(language);
 }
 
+
+/**
+ * Loads the JSON locale file for the requested language.
+ * @param {*} language Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function loadMessages(language) {
   const url = chrome.runtime.getURL(`locales/${language}.json`);
   try {
@@ -145,6 +180,11 @@ async function loadMessages(language) {
   }
 }
 
+
+/**
+ * Applies translated text, HTML, titles, and ARIA labels to popup elements.
+ * @returns {*} Result used by the caller.
+ */
 function applyTranslations() {
   document.querySelectorAll("[data-i18n]").forEach(element => {
     element.textContent = t(element.dataset.i18n);
@@ -161,6 +201,13 @@ function applyTranslations() {
   document.documentElement.lang = currentLanguage;
 }
 
+
+/**
+ * Returns a translated message with simple parameter replacement.
+ * @param {*} key Input used by this step.
+ * @param {*} params Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function t(key, params = {}) {
   let value = getMessageValue(key);
   if (typeof value !== "string") return key;
@@ -170,22 +217,43 @@ function t(key, params = {}) {
   return value;
 }
 
+
+/**
+ * Reads a nested message value from the loaded locale object.
+ * @param {*} key Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function getMessageValue(key) {
   return String(key || "").split(".").reduce((value, part) => {
     return value && Object.prototype.hasOwnProperty.call(value, part) ? value[part] : undefined;
   }, messages);
 }
 
+
+/**
+ * Shows or hides the settings panel and closes help when settings are opened.
+ * @returns {*} Result used by the caller.
+ */
 function toggleSettings() {
   elements.helpPanel.hidden = true;
   elements.settingsPanel.hidden = !elements.settingsPanel.hidden;
 }
 
+
+/**
+ * Shows or hides the help panel and closes settings when help is opened.
+ * @returns {*} Result used by the caller.
+ */
 function toggleHelp() {
   elements.settingsPanel.hidden = true;
   elements.helpPanel.hidden = !elements.helpPanel.hidden;
 }
 
+
+/**
+ * Reads settings from the popup, saves them, and refreshes background state.
+ * @returns {*} Result used by the caller.
+ */
 async function saveSettings() {
   const settings = readSettings();
   const response = await send("SAVE_SETTINGS", { settings });
@@ -193,6 +261,12 @@ async function saveSettings() {
   elements.status.textContent = t("status.settingsSaved");
 }
 
+
+/**
+ * Writes a settings object into the popup controls.
+ * @param {*} settings Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function fillSettings(settings) {
   const value = { ...DEFAULT_SETTINGS, ...(settings || {}) };
   elements.ytDlpPath.value = value.ytDlpPath;
@@ -204,6 +278,11 @@ function fillSettings(settings) {
   elements.socketTimeout.value = value.socketTimeout;
 }
 
+
+/**
+ * Reads and trims settings from the popup controls.
+ * @returns {*} Result used by the caller.
+ */
 function readSettings() {
   return {
     ytDlpPath: elements.ytDlpPath.value.trim(),
@@ -216,6 +295,13 @@ function readSettings() {
   };
 }
 
+
+/**
+ * Sends a typed command to the background service worker with timeout handling.
+ * @param {*} type Input used by this step.
+ * @param {*} extra Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function send(type, extra = {}) {
   try {
     const timeoutMs = commandTimeoutMs(type);
@@ -234,6 +320,12 @@ async function send(type, extra = {}) {
   }
 }
 
+
+/**
+ * Chooses a timeout long enough for slow operations such as source verification.
+ * @param {*} type Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function commandTimeoutMs(type) {
   if (type === "START_RECORD") return 120000;
   if (type === "VERIFY_CANDIDATE") return 90000;
@@ -241,6 +333,13 @@ function commandTimeoutMs(type) {
   return 5000;
 }
 
+
+/**
+ * Decides when a command error should be hidden because a newer state already explains it.
+ * @param {*} type Input used by this step.
+ * @param {*} state Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function shouldSuppressCommandError(type, state) {
   if (!state) return false;
   if (type === "VERIFY_CANDIDATE") return !!state.verifyingSource;
@@ -250,6 +349,11 @@ function shouldSuppressCommandError(type, state) {
   return false;
 }
 
+
+/**
+ * Completes the current recording, remuxes it when possible, and reports the saved file.
+ * @returns {*} Result used by the caller.
+ */
 async function stopRecording() {
   if (stopPending) return;
   stopPending = true;
@@ -258,6 +362,13 @@ async function stopRecording() {
   await send("STOP_RECORD", { tabId: activeTabId });
 }
 
+
+/**
+ * Wraps chrome.runtime.sendMessage with a timeout so the popup does not hang forever.
+ * @param {*} message Input used by this step.
+ * @param {*} timeoutMs Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function sendWithTimeout(message, timeoutMs) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("timeout")), timeoutMs);
@@ -271,6 +382,12 @@ function sendWithTimeout(message, timeoutMs) {
   });
 }
 
+
+/**
+ * Displays a visible popup error message.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function showError(message) {
   setBadge("error", "!", t("badges.error"));
   elements.status.textContent = t("errors.reloadExtension");
@@ -278,6 +395,12 @@ function showError(message) {
   elements.error.textContent = message;
 }
 
+
+/**
+ * Renders the complete popup state, including buttons, activity, candidates, and source picker.
+ * @param {*} state Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function render(state) {
   if (!state) return;
   lastState = state;
@@ -326,6 +449,12 @@ function render(state) {
   }
 }
 
+
+/**
+ * Rebuilds the source-selection combo box from public candidate state.
+ * @param {*} state Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function renderSourceSelect(state) {
   const previous = elements.sourceSelect.value;
   elements.sourceSelect.innerHTML = "";
@@ -352,12 +481,22 @@ function renderSourceSelect(state) {
   }
 }
 
+
+/**
+ * Starts verification for the currently selected candidate.
+ * @returns {*} Result used by the caller.
+ */
 function verifySelectedSource() {
   const url = elements.sourceSelect.value;
   if (!url) return;
   send("VERIFY_CANDIDATE", { url });
 }
 
+
+/**
+ * Starts download for the currently selected and verified candidate.
+ * @returns {*} Result used by the caller.
+ */
 function downloadSelectedSource() {
   const url = elements.sourceSelect.value;
   if (url) {
@@ -367,6 +506,12 @@ function downloadSelectedSource() {
   send("DOWNLOAD_BEST");
 }
 
+
+/**
+ * Checks whether the selected candidate is the same candidate that was confirmed.
+ * @param {*} state Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function selectedCandidateIsVerified(state) {
   const url = elements.sourceSelect.value;
   if (!url) return false;
@@ -374,6 +519,12 @@ function selectedCandidateIsVerified(state) {
   return !!(candidate && candidate.check && candidate.check.confirmed);
 }
 
+
+/**
+ * Renders verification details for one candidate row.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function renderCandidateCheck(candidate) {
   const check = candidate.check;
   if (!check) return null;
@@ -401,6 +552,12 @@ function renderCandidateCheck(candidate) {
   return box;
 }
 
+
+/**
+ * Renders the compact status badge in the popup header.
+ * @param {*} state Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function renderBadge(state) {
   if (state.error || state.lastNativeError) {
     setBadge("error", "!", t("badges.error"));
@@ -421,10 +578,24 @@ function renderBadge(state) {
   setBadge("waiting", "⌛", t("badges.waiting"));
 }
 
+
+/**
+ * Returns a short host label for a candidate URL.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function displayCandidateHost(candidate) {
   return `${candidate.host || "unknown host"}${candidate.path ? ` / ${displayCandidatePath(candidate)}` : ""}`;
 }
 
+
+/**
+ * Builds the combo-box label that includes source type, video number, and quality variant.
+ * @param {*} index Input used by this step.
+ * @param {*} candidate Input used by this step.
+ * @param {*} candidates Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateOptionLabel(index, candidate, candidates) {
   const videoNumber = candidateVideoNumber(candidate, candidates);
   return t("candidate.option", {
@@ -435,6 +606,12 @@ function candidateOptionLabel(index, candidate, candidates) {
   });
 }
 
+
+/**
+ * Returns a user-facing source type label for a candidate.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateTypeLabel(candidate) {
   if (candidate.kind === "youtube") return "YouTube";
   if (candidate.kind === "vkvideo") return "VK Video";
@@ -447,6 +624,13 @@ function candidateTypeLabel(candidate) {
   return "URL";
 }
 
+
+/**
+ * Calculates the visible video number for grouped candidates.
+ * @param {*} candidate Input used by this step.
+ * @param {*} candidates Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateVideoNumber(candidate, candidates) {
   const keys = [];
   for (const item of candidates) {
@@ -456,6 +640,12 @@ function candidateVideoNumber(candidate, candidates) {
   return Math.max(1, keys.indexOf(candidateGroupKey(candidate)) + 1);
 }
 
+
+/**
+ * Builds a grouping key so variants of the same video stay together.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateGroupKey(candidate) {
   try {
     const parsed = new URL(candidate.url);
@@ -479,6 +669,12 @@ function candidateGroupKey(candidate) {
   }
 }
 
+
+/**
+ * Builds a quality or role label such as master, HD 720p, or DASH.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateVariantLabel(candidate) {
   const text = `${candidate.url} ${candidate.path || ""}`;
   if (candidate.kind === "vkvideo") return t("candidate.variants.currentVideo");
@@ -499,6 +695,12 @@ function candidateVariantLabel(candidate) {
   return candidate.label || t("candidate.variants.source");
 }
 
+
+/**
+ * Extracts a YouTube video id from a parsed URL.
+ * @param {*} parsed Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function youtubeVideoIdFromUrl(parsed) {
   const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
   if (host === "youtube.com" || host === "m.youtube.com") {
@@ -514,11 +716,23 @@ function youtubeVideoIdFromUrl(parsed) {
   return "";
 }
 
+
+/**
+ * Validates and normalizes a YouTube video id.
+ * @param {*} value Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function cleanYouTubeId(value) {
   const id = String(value || "").trim();
   return /^[a-zA-Z0-9_-]{6,20}$/.test(id) ? id : "";
 }
 
+
+/**
+ * Extracts a VKVideo id from a parsed URL.
+ * @param {*} parsed Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function vkVideoIdFromUrl(parsed) {
   const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
   if (host !== "vkvideo.ru" && host !== "m.vkvideo.ru") return "";
@@ -526,6 +740,12 @@ function vkVideoIdFromUrl(parsed) {
   return match ? match[1] : "";
 }
 
+
+/**
+ * Returns a compact URL path for candidate details.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function displayCandidatePath(candidate) {
   const value = String(candidate.path || "");
   if (!value) return shortUrl(candidate.url);
@@ -535,6 +755,12 @@ function displayCandidatePath(candidate) {
     .slice(0, 90);
 }
 
+
+/**
+ * Shortens long URLs for readable display without changing the original value.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function shortUrl(url) {
   try {
     const parsed = new URL(url);
@@ -545,12 +771,26 @@ function shortUrl(url) {
   }
 }
 
+
+/**
+ * Sets the badge class, icon, and text in one place.
+ * @param {*} kind Input used by this step.
+ * @param {*} icon Input used by this step.
+ * @param {*} text Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function setBadge(kind, icon, text) {
   elements.badge.className = kind;
   elements.badgeIcon.textContent = icon;
   elements.badgeText.textContent = text;
 }
 
+
+/**
+ * Coalesces rapid state updates before rendering the popup.
+ * @param {*} state Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function scheduleRender(state) {
   pendingState = state;
   if (renderThrottleId) return;
@@ -561,6 +801,12 @@ function scheduleRender(state) {
   }, 500);
 }
 
+
+/**
+ * Renders the main activity text and progress details.
+ * @param {*} state Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function renderActivity(state) {
   elements.activity.className = "activity";
   if (state.recording) {
@@ -589,6 +835,12 @@ function renderActivity(state) {
   elements.activityDetail.textContent = t("activity.idleDetail");
 }
 
+
+/**
+ * Starts or stops the elapsed-time timer for active operations.
+ * @param {*} state Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function ensureTimer(state) {
   if (state.recording && !timerId) {
     timerId = setInterval(() => {
@@ -601,6 +853,12 @@ function ensureTimer(state) {
   }
 }
 
+
+/**
+ * Formats elapsed seconds as mm:ss.
+ * @param {*} startedAt Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function formatElapsed(startedAt) {
   if (!startedAt) return "00:00";
   const total = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
@@ -609,6 +867,12 @@ function formatElapsed(startedAt) {
   return `${minutes}:${seconds}`;
 }
 
+
+/**
+ * Formats byte counts into readable file-size labels.
+ * @param {*} bytes Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function formatBytes(bytes) {
   const value = Number(bytes) || 0;
   if (value <= 0) return "";
@@ -623,6 +887,12 @@ function formatBytes(bytes) {
   return `${size.toFixed(digits)} ${units[index]}`;
 }
 
+
+/**
+ * Maps internal source identifiers to display labels.
+ * @param {*} source Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function translateSource(source) {
   if (!source) return t("sources.unknown");
   if (source === "video") return t("sources.videoTag");
@@ -633,28 +903,17 @@ function translateSource(source) {
   return source;
 }
 
+
+/**
+ * Converts status payloads from the background worker into visible localized text.
+ * @param {*} status Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function localizeStatus(status) {
+  if (status && typeof status === "object" && status.key) {
+    return t(status.key, status.params || {});
+  }
   const value = String(status || "").trim();
   if (!value) return "";
-  const exact = {
-    "Ожидание.": "status.idle",
-    "Загрузка...": "status.loading",
-    "Сначала нажми Проверить и подтверди, что это нужное видео.": "status.verifyFirst",
-    "Пока не нашел URL для скачивания.": "status.noCandidate",
-    "Останавливаю скачивание yt-dlp...": "status.stoppingDownload",
-    "Скачивание остановлено.": "status.downloadStopped",
-    "Ищу область плеера для записи...": "status.findingRecordingArea",
-    "Выбор области записи отменен.": "status.recordingAreaCancelled",
-    "Плеер выбран. Нажми Play на видео, запись начнется через 5 секунд.": "status.playerSelectedCountdown"
-  };
-  if (exact[value]) return t(exact[value]);
-  let match = value.match(/^Найдено вариантов для проверки: (\d+)\./);
-  if (match) return t("status.candidatesFound", { count: match[1] });
-  match = value.match(/^Скан готов: video (\d+), iframe (\d+), res (\d+)\./);
-  if (match) return t("status.scanDone", { videos: match[1], embeds: match[2], resources: match[3] });
-  if (/^Проверяю источник через yt-dlp:/i.test(value)) return t("status.verifying");
-  if (/^Источник подтвержден:/i.test(value)) return value.replace("Источник подтвержден:", t("status.sourceConfirmedPrefix"));
-  if (/^Источник читается, но НЕ подтвержден:/i.test(value)) return value.replace("Источник читается, но НЕ подтвержден:", t("status.sourceReadableNotConfirmedPrefix"));
-  if (/^Проверка не прошла:/i.test(value)) return value.replace("Проверка не прошла:", t("status.verificationFailedPrefix"));
   return value;
 }

@@ -1,4 +1,6 @@
 // Video Course Capture
+// Purpose: Windows native messaging host that runs yt-dlp/ffmpeg, writes recordings, verifies sources, handles cookies, and kills child processes on stop.
+// Most to know: all browser-to-system work crosses this file, so every request is parsed, normalized, logged, and answered through the Chrome native messaging protocol.
 // Developed and maintained by Alexey Kagansky
 // Copyright (c) 2026 Alexey Kagansky
 // Repository: https://github.com/ale4ko69/chrome-course-capture
@@ -30,6 +32,11 @@ process.stdin.on("data", chunk => {
 
 process.stdin.on("end", () => process.exit(0));
 
+
+/**
+ * Reads length-prefixed Chrome native messaging packets from stdin and dispatches complete JSON messages.
+ * @returns {*} Result used by the caller.
+ */
 function consumeInput() {
   while (input.length >= 4) {
     const length = input.readUInt32LE(0);
@@ -53,6 +60,12 @@ function consumeInput() {
   }
 }
 
+
+/**
+ * Routes an incoming command to the correct handler and returns a response object for the caller.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function handleMessage(message) {
   if (!message || !message.command) {
     writeMessage({ requestId: message && message.requestId, ok: false, error: "Unknown command" });
@@ -117,7 +130,7 @@ async function handleMessage(message) {
         tabId: message.tabId,
         ok: true,
         event: "progress",
-        message: "YouTube не отдал выбранный формат с cookies; повторяю без cookies."
+        message: "YouTube did not provide the selected format with cookies; retrying without cookies."
       });
       await runYtDlp(message, { mode: "no-cookies", final: true, settings });
       return;
@@ -144,6 +157,12 @@ async function handleMessage(message) {
   }
 }
 
+
+/**
+ * Checks a candidate URL with yt-dlp and returns title, duration, size, and trust metadata without downloading.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function verifySource(message) {
   if (!message.url || !/^https?:\/\//i.test(message.url)) {
     writeMessage({ requestId: message.requestId, tabId: message.tabId, ok: false, error: "No downloadable http(s) URL" });
@@ -165,6 +184,12 @@ async function verifySource(message) {
   });
 }
 
+
+/**
+ * Initializes a file-backed recording session before MediaRecorder chunks start arriving.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function startRecording(message) {
   const recordingId = String(message.recordingId || "");
   if (!recordingId) {
@@ -196,10 +221,16 @@ function startRecording(message) {
     tabId: message.tabId,
     ok: true,
     event: "recording_started",
-    message: `Потоковая запись началась: ${filePath}`
+    message: `Stream recording started: ${filePath}`
   });
 }
 
+
+/**
+ * Appends one base64 encoded recording chunk to the active recording file.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function writeRecordingChunk(message) {
   const recording = recordings.get(String(message.recordingId || ""));
   if (!recording) {
@@ -227,7 +258,7 @@ function writeRecordingChunk(message) {
       const headerOffset = findEbmlHeader(recording.pendingHeader);
       if (headerOffset < 0) {
         if (recording.pendingHeader.length > 2 * 1024 * 1024) {
-          recording.headerError = `Не найден WebM-заголовок в первых ${recording.pendingHeader.length} байтах записи.`;
+          recording.headerError = `WebM header was not found in the first ${recording.pendingHeader.length} bytes of the recording.`;
         }
         recording.nextIndex += 1;
         writeMessage({
@@ -266,11 +297,24 @@ function writeRecordingChunk(message) {
   }
 }
 
+
+/**
+ * Finds the WebM EBML header inside a chunk so corrupted leading bytes can be skipped.
+ * @param {*} buffer Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function findEbmlHeader(buffer) {
   const signature = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
   return buffer.indexOf(signature);
 }
 
+
+/**
+ * Stops and removes an active recording session after an error or cancellation.
+ * @param {*} recordingId Input used by this step.
+ * @param {*} recording Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function abortRecording(recordingId, recording) {
   recordings.delete(recordingId);
   recording.stream.destroy();
@@ -278,6 +322,12 @@ function abortRecording(recordingId, recording) {
   appendLog(`RECORDING_ABORT ${recordingId} ${recording.filePath}`);
 }
 
+
+/**
+ * Completes the current recording, remuxes it when possible, and reports the saved file.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function stopRecording(message) {
   const recordingId = String(message.recordingId || "");
   const recording = recordings.get(recordingId);
@@ -295,7 +345,7 @@ async function stopRecording(message) {
       requestId: message.requestId,
       tabId: message.tabId,
       ok: false,
-      error: recording.headerError || `Запись не содержит WebM-заголовок (${firstBytes}). Файл не сохранен, чтобы не оставить битый webm.`
+      error: recording.headerError || `Recording does not contain a WebM header (${firstBytes}). The file was not saved to avoid leaving a broken webm.`
     });
     return;
   }
@@ -308,7 +358,7 @@ async function stopRecording(message) {
       tabId: message.tabId,
       ok: true,
       event: "recording_done",
-      message: `Запись сохранена: ${finalPath}`
+      message: `Recording saved: ${finalPath}`
     });
   } catch (error) {
     appendLog(`RECORDING_REMUX_ERROR ${recordingId} ${error.message}`);
@@ -317,11 +367,17 @@ async function stopRecording(message) {
       tabId: message.tabId,
       ok: true,
       event: "recording_done",
-      message: `Запись сохранена без исправления перемотки: ${recording.filePath}. ffmpeg: ${error.message}`
+      message: `Recording saved without seek fix: ${recording.filePath}. ffmpeg: ${error.message}`
     });
   }
 }
 
+
+/**
+ * Runs ffmpeg to rebuild the recorded WebM file into a cleaner final media file.
+ * @param {*} recording Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function remuxRecording(recording) {
   return new Promise((resolve, reject) => {
     const ffmpegPath = path.join(recording.settings.ffmpegDir, "ffmpeg.exe");
@@ -376,6 +432,15 @@ function remuxRecording(recording) {
   });
 }
 
+
+/**
+ * Builds yt-dlp download arguments for the selected candidate and current settings.
+ * @param {*} message Input used by this step.
+ * @param {*} cookieFile Input used by this step.
+ * @param {*} outputBaseName Input used by this step.
+ * @param {*} settings Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function buildArgs(message, cookieFile, outputBaseName, settings) {
   const outputTemplate = path.join(settings.downloadDir, `${outputBaseName}.%(ext)s`);
   const args = [
@@ -412,6 +477,14 @@ function buildArgs(message, cookieFile, outputBaseName, settings) {
   return args;
 }
 
+
+/**
+ * Builds yt-dlp metadata-only verification arguments for the selected candidate.
+ * @param {*} message Input used by this step.
+ * @param {*} cookieFile Input used by this step.
+ * @param {*} settings Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function buildVerifyArgs(message, cookieFile, settings) {
   const args = [
     "--ignore-config",
@@ -441,6 +514,12 @@ function buildVerifyArgs(message, cookieFile, settings) {
   return args;
 }
 
+
+/**
+ * Detects whether a URL belongs to YouTube so playlist-safe options can be applied.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function isYouTubeUrl(url) {
   try {
     const parsed = new URL(url);
@@ -451,6 +530,12 @@ function isYouTubeUrl(url) {
   }
 }
 
+
+/**
+ * Builds a stable output filename base from verified metadata or candidate labels.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function buildOutputBaseName(message) {
   const title = sanitizeFileName(cleanTitleForFileName(message.title || message.pageUrl || "course-video"))
     .replace(/\.(mp4|webm|mkv|mov|m4v)$/i, "")
@@ -464,6 +549,12 @@ function buildOutputBaseName(message) {
   return [title, hint, suffix || timestamp()].filter(Boolean).join("-");
 }
 
+
+/**
+ * Normalizes a media title into a filesystem-safe filename fragment.
+ * @param {*} value Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function cleanTitleForFileName(value) {
   let text = String(value || "").trim();
   if (!text) return "course-video";
@@ -493,6 +584,12 @@ function cleanTitleForFileName(value) {
   return text || "course-video";
 }
 
+
+/**
+ * Extracts a title-like URL value from yt-dlp or ffmpeg output text.
+ * @param {*} text Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function parseTitleUrl(text) {
   const value = String(text || "").trim();
   if (/^https?:\/\//i.test(value)) return new URL(value);
@@ -503,6 +600,13 @@ function parseTitleUrl(text) {
   return null;
 }
 
+
+/**
+ * Starts yt-dlp for a real download and wires progress, size guard, cancellation, and completion handling.
+ * @param {*} message Input used by this step.
+ * @param {*} options Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function runYtDlp(message, options) {
   return new Promise(resolve => {
     const settings = options.settings || normalizeSettings(message.settings);
@@ -566,7 +670,7 @@ function runYtDlp(message, options) {
       }
       appendLog(`DONE ${label} code=${code}`);
       if (killedBySizeGuard) {
-        const error = `Скачивание остановлено: размер превысил защитный лимит ${settings.maxDownloadGb}GB. Плейлист похож на бесконечный или обманный.`;
+        const error = `Download stopped: size exceeded the safety limit of ${settings.maxDownloadGb}GB. The playlist looks endless or misleading.`;
         output += `\nERROR: ${error}`;
         cleanupPartialDownloads(outputBaseName, settings);
         if (options.final) {
@@ -585,7 +689,7 @@ function runYtDlp(message, options) {
           tabId: message.tabId,
           ok: true,
           event: "cancelled",
-          message: "Скачивание отменено пользователем."
+          message: "Download cancelled by the user."
         });
       } else if (ok || options.final) {
         writeDone(message, ok, code, output);
@@ -596,6 +700,13 @@ function runYtDlp(message, options) {
   });
 }
 
+
+/**
+ * Runs verification with a fallback strategy when a site rejects the preferred format selector.
+ * @param {*} message Input used by this step.
+ * @param {*} settings Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function runYtDlpVerify(message, settings) {
   const first = await runYtDlpVerifyOnce(message, settings, "extension-cookies");
   if (!first.ok && isYouTubeUrl(message.url) && isRequestedFormatUnavailable(first.error || "")) {
@@ -605,13 +716,21 @@ async function runYtDlpVerify(message, settings) {
       tabId: message.tabId,
       ok: true,
       event: "verify_retry",
-      message: "Вторая попытка проверки..."
+      message: "Second verification attempt..."
     });
     return runYtDlpVerifyOnce({ ...message, cookies: [], pageUrl: "" }, settings, "no-cookies");
   }
   return first;
 }
 
+
+/**
+ * Runs a single yt-dlp verification attempt for one verification mode.
+ * @param {*} message Input used by this step.
+ * @param {*} settings Input used by this step.
+ * @param {*} mode Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function runYtDlpVerifyOnce(message, settings, mode) {
   return new Promise(resolve => {
     const cookieFile = Array.isArray(message.cookies) && message.cookies.length ? writeCookiesFile(message) : "";
@@ -635,7 +754,7 @@ function runYtDlpVerifyOnce(message, settings, mode) {
       settled = true;
       killProcessTree(child, "verify-timeout");
       cleanupCookieFile(cookieFile);
-      resolve({ ok: false, error: "Проверка yt-dlp заняла слишком много времени", info: { error: "timeout" } });
+      resolve({ ok: false, error: "yt-dlp verification took too long", info: { error: "timeout" } });
     }, 55000);
 
     child.stdout.on("data", data => {
@@ -665,7 +784,7 @@ function runYtDlpVerifyOnce(message, settings, mode) {
       }
       const info = parseYtDlpJson(output);
       if (!info) {
-        resolve({ ok: false, error: "yt-dlp не вернул JSON метаданных", info: { error: "no metadata json" } });
+        resolve({ ok: false, error: "yt-dlp did not return metadata JSON", info: { error: "no metadata json" } });
         return;
       }
       resolve({ ok: true, info });
@@ -673,10 +792,26 @@ function runYtDlpVerifyOnce(message, settings, mode) {
   });
 }
 
+
+/**
+ * Detects yt-dlp format-selection failures that should trigger a fallback verification attempt.
+ * @param {*} output Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function isRequestedFormatUnavailable(output) {
   return /Requested format is not available/i.test(String(output || ""));
 }
 
+
+/**
+ * Watches downloaded bytes and cancels the process if it exceeds the configured limit.
+ * @param {*} child Input used by this step.
+ * @param {*} message Input used by this step.
+ * @param {*} outputBaseName Input used by this step.
+ * @param {*} settings Input used by this step.
+ * @param {*} onLimit Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function startDownloadSizeGuard(child, message, outputBaseName, settings, onLimit) {
   return setInterval(() => {
     const bytes = getOutputBytes(outputBaseName, settings);
@@ -691,6 +826,13 @@ function startDownloadSizeGuard(child, message, outputBaseName, settings, onLimi
   }, 3000);
 }
 
+
+/**
+ * Calculates the current size of partial and final files for a download base name.
+ * @param {*} outputBaseName Input used by this step.
+ * @param {*} settings Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function getOutputBytes(outputBaseName, settings) {
   let total = 0;
   try {
@@ -706,6 +848,13 @@ function getOutputBytes(outputBaseName, settings) {
   return total;
 }
 
+
+/**
+ * Deletes unfinished partial files created by a cancelled or over-limit download.
+ * @param {*} outputBaseName Input used by this step.
+ * @param {*} settings Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function cleanupPartialDownloads(outputBaseName, settings) {
   try {
     for (const file of fs.readdirSync(settings.downloadDir)) {
@@ -723,6 +872,12 @@ function cleanupPartialDownloads(outputBaseName, settings) {
   }
 }
 
+
+/**
+ * Cancels an active yt-dlp process for the requested browser tab.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function cancelDownload(message) {
   const key = String(message.tabId);
   const child = downloadsByTab.get(key);
@@ -732,7 +887,7 @@ function cancelDownload(message) {
       tabId: message.tabId,
       ok: true,
       event: "cancel_download",
-      message: "Активный yt-dlp процесс не найден."
+      message: "Active yt-dlp process was not found."
     });
     return;
   }
@@ -747,7 +902,7 @@ function cancelDownload(message) {
       tabId: message.tabId,
       ok: true,
       event: "cancel_download",
-      message: "Скачивание yt-dlp остановлено."
+      message: "yt-dlp download stopped."
     });
   } catch (error) {
     writeMessage({
@@ -760,6 +915,13 @@ function cancelDownload(message) {
   }
 }
 
+
+/**
+ * Terminates a process and its children so ffmpeg does not continue after stop.
+ * @param {*} child Input used by this step.
+ * @param {*} reason Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function killProcessTree(child, reason) {
   if (!child || !child.pid) return;
   appendLog(`KILL_TREE reason=${reason} pid=${child.pid}`);
@@ -785,6 +947,15 @@ function killProcessTree(child, reason) {
   }
 }
 
+
+/**
+ * Sends the final native-host result back to the extension and writes the outcome to the log.
+ * @param {*} message Input used by this step.
+ * @param {*} ok Input used by this step.
+ * @param {*} code Input used by this step.
+ * @param {*} output Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function writeDone(message, ok, code, output) {
   const settings = normalizeSettings(message.settings);
   const lastError = extractLastError(output);
@@ -798,6 +969,12 @@ function writeDone(message, ok, code, output) {
   });
 }
 
+
+/**
+ * Pulls the most useful error line from tool output for the popup message.
+ * @param {*} output Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function extractLastError(output) {
   return String(output || "")
     .split(/\r?\n/)
@@ -807,6 +984,12 @@ function extractLastError(output) {
     .find(line => /^ERROR:/i.test(line));
 }
 
+
+/**
+ * Parses yt-dlp JSON output while tolerating surrounding log lines.
+ * @param {*} output Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function parseYtDlpJson(output) {
   const lines = String(output || "")
     .split(/\r?\n/)
@@ -824,6 +1007,12 @@ function parseYtDlpJson(output) {
   return null;
 }
 
+
+/**
+ * Merges and validates settings received from the extension before using them on disk or in commands.
+ * @param {*} raw Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function normalizeSettings(raw) {
   const settings = raw && typeof raw === "object" ? raw : {};
   const maxDownloadGb = clampNumber(settings.maxDownloadGb, 1, 200, DEFAULT_MAX_DOWNLOAD_GB);
@@ -840,17 +1029,39 @@ function normalizeSettings(raw) {
   };
 }
 
+
+/**
+ * Converts empty or relative settings paths into safe native-host filesystem paths.
+ * @param {*} value Input used by this step.
+ * @param {*} fallback Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function normalizePath(value, fallback) {
   const text = String(value || "").trim();
   return text ? path.resolve(text) : fallback;
 }
 
+
+/**
+ * Constrains numeric settings to the supported range and falls back when input is invalid.
+ * @param {*} value Input used by this step.
+ * @param {*} min Input used by this step.
+ * @param {*} max Input used by this step.
+ * @param {*} fallback Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function clampNumber(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.max(min, Math.min(max, Math.round(number)));
 }
 
+
+/**
+ * Writes temporary Netscape cookies so yt-dlp can use the current browser session.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function writeCookiesFile(message) {
   const file = path.join(TMP_DIR, `cookies-${message.requestId || Date.now()}.txt`);
   const lines = [
@@ -872,6 +1083,12 @@ function writeCookiesFile(message) {
   return file;
 }
 
+
+/**
+ * Removes a temporary cookies file after yt-dlp no longer needs it.
+ * @param {*} file Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function cleanupCookieFile(file) {
   if (!file) return;
   try {
@@ -881,6 +1098,14 @@ function cleanupCookieFile(file) {
   }
 }
 
+
+/**
+ * Sends a progress event through the native messaging channel.
+ * @param {*} requestId Input used by this step.
+ * @param {*} tabId Input used by this step.
+ * @param {*} data Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function reportProgress(requestId, tabId, data) {
   const text = data.toString("utf8").trim();
   if (!text) return;
@@ -896,6 +1121,12 @@ function reportProgress(requestId, tabId, data) {
   });
 }
 
+
+/**
+ * Extracts percent, size, speed, and ETA fields from yt-dlp progress text.
+ * @param {*} text Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function parseYtDlpProgress(text) {
   const value = String(text || "").replace(/\s+/g, " ").trim();
   if (!value) return null;
@@ -926,6 +1157,12 @@ function parseYtDlpProgress(text) {
   return null;
 }
 
+
+/**
+ * Writes one length-prefixed JSON packet to stdout for Chrome native messaging.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function writeMessage(message) {
   const json = Buffer.from(JSON.stringify(message), "utf8");
   const header = Buffer.alloc(4);
@@ -933,14 +1170,32 @@ function writeMessage(message) {
   process.stdout.write(Buffer.concat([header, json]));
 }
 
+
+/**
+ * Appends one diagnostic line to native-host.log.
+ * @param {*} line Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function appendLog(line) {
   fs.appendFileSync(LOG_FILE, `${line}\n`, "utf8");
 }
 
+
+/**
+ * Quotes a command argument for human-readable logging.
+ * @param {*} value Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function quoteArg(value) {
   return /[\s"]/g.test(value) ? `"${String(value).replace(/"/g, '\\"')}"` : value;
 }
 
+
+/**
+ * Removes characters that are unsafe in Windows filenames.
+ * @param {*} value Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function sanitizeFileName(value) {
   return String(value || "course-recording.webm")
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
@@ -949,6 +1204,11 @@ function sanitizeFileName(value) {
     .slice(0, 180) || "course-recording.webm";
 }
 
+
+/**
+ * Formats a timestamp for filenames and logs.
+ * @returns {*} Result used by the caller.
+ */
 function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 }

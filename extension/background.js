@@ -1,4 +1,6 @@
 // Video Course Capture
+// Purpose: Chrome extension service worker that owns tab state, source detection, verification, downloading, recording orchestration, settings, and native-host messaging.
+// Most to know: this file is the main coordinator; it keeps candidate verification separate from downloading so the user confirms the real media before saving it.
 // Developed and maintained by Alexey Kagansky
 // Copyright (c) 2026 Alexey Kagansky
 // Repository: https://github.com/ale4ko69/chrome-course-capture
@@ -35,12 +37,35 @@ const state = {
   lastNativeError: null
 };
 
+/**
+ * Builds a locale-ready status payload for the popup.
+ * @param {string} key Locale key in extension/locales/*.json.
+ * @param {Object} params Values used by the locale template.
+ * @returns {{key: string, params: Object}} Serializable popup status.
+ */
+function statusMessage(key, params = {}) {
+  return { key, params };
+}
+
+/**
+ * Returns a fallback text only when an external tool still sends plain text.
+ * @param {*} value External status value.
+ * @param {string} fallbackKey Locale key used when value is empty.
+ * @param {Object} fallbackParams Values used by the fallback template.
+ * @returns {*} Plain text from the external tool or a locale-ready status object.
+ */
+function statusFromExternal(value, fallbackKey, fallbackParams = {}) {
+  return value || statusMessage(fallbackKey, fallbackParams);
+}
+
+// Seed default settings on install so the popup can render immediately.
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get(DEFAULT_SETTINGS).then(values => {
     chrome.storage.local.set(values);
   });
 });
 
+// Watch network traffic for media-looking requests while the tab is playing.
 chrome.webRequest.onBeforeRequest.addListener(
   details => {
     if (details.tabId < 0 || !details.url || !isMediaCandidate(details.url)) {
@@ -51,6 +76,7 @@ chrome.webRequest.onBeforeRequest.addListener(
   { urls: ["<all_urls>"] }
 );
 
+// Main message router for popup, content scripts, and offscreen recorder.
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message, sender).then(sendResponse).catch(error => {
     sendResponse({ ok: false, error: String(error && error.message ? error.message : error) });
@@ -58,10 +84,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
+// Drop per-tab state when Chrome closes the tab.
 chrome.tabs.onRemoved.addListener(tabId => {
   state.tabs.delete(tabId);
 });
 
+// Keyboard shortcut fallback for stopping recording without opening the popup.
 chrome.commands.onCommand.addListener(command => {
   if (command === "stop-recording") {
     stopCurrentRecording().catch(error => {
@@ -70,6 +98,13 @@ chrome.commands.onCommand.addListener(command => {
   }
 });
 
+
+/**
+ * Routes an incoming command to the correct handler and returns a response object for the caller.
+ * @param {*} message Input used by this step.
+ * @param {*} sender Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function handleMessage(message, sender) {
   if (!message || !message.type) {
     return { ok: false, error: "Unknown message" };
@@ -204,7 +239,7 @@ async function handleMessage(message, sender) {
     tabState.armed = true;
     tabState.playbackObserved = false;
     tabState.playlistObserved = false;
-    tabState.status = "Готово. Теперь нажми Play на странице курса.";
+    tabState.status = statusMessage("status.readyPlay");
     tabState.error = "";
     notifyPopup(tab.id);
     return { ok: true, state: publicTabState(tab.id) };
@@ -219,7 +254,7 @@ async function handleMessage(message, sender) {
     const tab = await getActiveTab();
     const tabState = getTabState(tab.id);
     tabState.armed = false;
-    tabState.status = "Ожидание.";
+    tabState.status = statusMessage("status.idle");
     notifyPopup(tab.id);
     return { ok: true, state: publicTabState(tab.id) };
   }
@@ -267,7 +302,7 @@ async function handleMessage(message, sender) {
       tabState.busy = false;
       tabState.recordingStartedAt = 0;
       tabState.recordingBytes = 0;
-      tabState.status = `Запись сохранена: ${message.filename}`;
+      tabState.status = statusMessage("status.recordingSaved", { filename: message.filename });
       notifyPopup(message.tabId);
       return { ok: true };
     } catch (error) {
@@ -276,7 +311,7 @@ async function handleMessage(message, sender) {
       tabState.recordingStartedAt = 0;
       tabState.recordingBytes = 0;
       tabState.error = String(error && error.message ? error.message : error);
-      tabState.status = `Не смог сохранить запись: ${tabState.error}`;
+      tabState.status = statusMessage("status.recordingSaveFailed", { error: tabState.error });
       notifyPopup(message.tabId);
       return { ok: false, error: tabState.error };
     }
@@ -316,7 +351,7 @@ async function handleMessage(message, sender) {
     tabState.busy = false;
     tabState.recordingStartedAt = 0;
     tabState.recordingBytes = 0;
-    tabState.status = response.message || "Запись сохранена в папку downloads.";
+    tabState.status = statusFromExternal(response.message, "status.recordingSavedFolder");
     notifyPopup(message.tabId);
     return { ok: true, response };
   }
@@ -343,10 +378,22 @@ async function handleMessage(message, sender) {
   return { ok: false, error: `Unknown message type: ${message.type}` };
 }
 
+
+/**
+ * Checks whether a URL looks like a supported media source.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function isMediaCandidate(url) {
   return MEDIA_EXTENSIONS.test(url) || /m3u8|mpd|hls|dash|videoplayback|playlist|manifest|master/i.test(url) || isEmbedPlayerUrl(url);
 }
 
+
+/**
+ * Scores media URLs so stronger candidates sort ahead of noisy fragments.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function scoreUrl(url) {
   if (canonicalVkVideoUrl(url)) return 168;
   if (canonicalYouTubeWatchUrl(url)) return 170;
@@ -365,17 +412,29 @@ function scoreUrl(url) {
   return 35;
 }
 
+
+/**
+ * Checks whether a URL looks like an embedded player page.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function isEmbedPlayerUrl(url) {
   return EMBED_PLAYER_PATTERNS.some(pattern => pattern.test(url));
 }
 
+
+/**
+ * Creates or returns the state object for a browser tab.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function getTabState(tabId) {
   if (!state.tabs.has(tabId)) {
     state.tabs.set(tabId, {
       armed: false,
       busy: false,
       recording: false,
-      status: "Ожидание.",
+      status: statusMessage("status.idle"),
       error: "",
       candidates: [],
       lastTitle: "",
@@ -396,6 +455,13 @@ function getTabState(tabId) {
   return state.tabs.get(tabId);
 }
 
+
+/**
+ * Adds or updates a candidate while preserving verification state.
+ * @param {*} tabId Input used by this step.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function rememberCandidate(tabId, candidate) {
   if (!candidate.url || !/^https?:\/\//i.test(candidate.url)) return false;
   const tabState = getTabState(tabId);
@@ -420,12 +486,20 @@ function rememberCandidate(tabId, candidate) {
   }
   tabState.candidates = limitCandidatesPreservingConfirmed(tabState.candidates);
   if (!tabState.recording && !tabState.busy && !tabState.verifyingSource && !tabState.verifiedStatus) {
-    tabState.status = `Найдено вариантов для проверки: ${publicCandidates(tabState.candidates).length}. Выбери вариант и нажми Проверить.`;
+    tabState.status = statusMessage("status.candidatesFound", { count: publicCandidates(tabState.candidates).length });
   }
   notifyPopup(tabId);
   return true;
 }
 
+
+/**
+ * Records a candidate observed through Chrome webRequest.
+ * @param {*} tabId Input used by this step.
+ * @param {*} url Input used by this step.
+ * @param {*} type Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function rememberNetworkCandidate(tabId, url, type) {
   try {
     const tab = await chrome.tabs.get(tabId);
@@ -451,6 +525,13 @@ async function rememberNetworkCandidate(tabId, url, type) {
   });
 }
 
+
+/**
+ * Adds the canonical current-page video URL when the site is a single-video page.
+ * @param {*} tabId Input used by this step.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function rememberCurrentPageCandidate(tabId, url) {
   const pageVideoUrl = canonicalPageVideoUrl(url);
   if (!pageVideoUrl) return false;
@@ -462,6 +543,12 @@ function rememberCurrentPageCandidate(tabId, url) {
   });
 }
 
+
+/**
+ * Builds the sanitized state object sent to the popup.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function publicTabState(tabId) {
   const tabState = getTabState(tabId);
   return {
@@ -483,6 +570,13 @@ function publicTabState(tabId) {
   };
 }
 
+
+/**
+ * Schedules automatic capture after the page has produced a promising candidate.
+ * @param {*} tabId Input used by this step.
+ * @param {*} delay Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function scheduleAutoCapture(tabId, delay = null) {
   const tabState = getTabState(tabId);
   if (tabState.autoTimer) clearTimeout(tabState.autoTimer);
@@ -490,18 +584,24 @@ function scheduleAutoCapture(tabId, delay = null) {
   const waitMs = typeof delay === "number" ? delay : delayForCandidate(best);
   if (!tabState.verifiedStatus) {
     tabState.status = best && best.kind === "embed"
-      ? "Нашел iframe-плеер. Жду HLS/API playlist перед проверкой..."
-      : "Видео стартовало. Ищу файл, playlist или страницу плеера...";
+      ? statusMessage("status.waitingEmbedPlaylist")
+      : statusMessage("status.waitingVideoSource");
     notifyPopup(tabId);
   }
   tabState.autoTimer = setTimeout(async () => {
     const current = getTabState(tabId);
     if (!current.armed || current.busy || current.verifiedStatus) return;
-    current.status = "Вариант найден. Выбери его, нажми Проверить, затем Скачать станет доступно только после подтверждения.";
+    current.status = statusMessage("status.candidateReadyVerify");
     notifyPopup(tabId);
   }, waitMs);
 }
 
+
+/**
+ * Keeps the candidate list compact without dropping the confirmed source.
+ * @param {*} candidates Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function limitCandidatesPreservingConfirmed(candidates) {
   const sorted = [...candidates].sort((a, b) => (b.score - a.score) || (b.at - a.at));
   const limited = sorted.slice(0, 80);
@@ -515,6 +615,12 @@ function limitCandidatesPreservingConfirmed(candidates) {
   return limited.sort((a, b) => (b.score - a.score) || (b.at - a.at));
 }
 
+
+/**
+ * Filters and formats candidates for user-facing display.
+ * @param {*} candidates Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function publicCandidates(candidates) {
   const sorted = [...candidates].sort((a, b) => (b.score - a.score) || (b.at - a.at));
   const groups = [];
@@ -541,6 +647,12 @@ function publicCandidates(candidates) {
   return result.slice(0, 30);
 }
 
+
+/**
+ * Checks whether a candidate group contains a useful high-confidence item.
+ * @param {*} group Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function groupHasStrongPublicCandidate(group) {
   return group.some(candidate => {
     if (candidate.check && candidate.check.confirmed) return true;
@@ -550,6 +662,12 @@ function groupHasStrongPublicCandidate(group) {
   });
 }
 
+
+/**
+ * Detects fragment-only or low-confidence groups that should be hidden when better options exist.
+ * @param {*} group Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function isWeakTechnicalGroup(group) {
   return !group.some(candidate => {
     if (candidate.check && candidate.check.confirmed) return true;
@@ -559,6 +677,12 @@ function isWeakTechnicalGroup(group) {
   });
 }
 
+
+/**
+ * Chooses which variants from a grouped video should appear in the combo box.
+ * @param {*} group Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function selectPublicCandidatesForGroup(group) {
   const confirmed = group.filter(candidate => candidate.check && candidate.check.confirmed);
   const playable = group.filter(candidate => candidate.kind !== "segment");
@@ -571,6 +695,12 @@ function selectPublicCandidatesForGroup(group) {
   return fallback.filter(Boolean);
 }
 
+
+/**
+ * Sorts display candidates by source strength, video number, and quality.
+ * @param {*} candidates Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function sortPublicCandidates(candidates) {
   return [...candidates].sort((a, b) => {
     const aRank = publicCandidateRank(a);
@@ -579,6 +709,12 @@ function sortPublicCandidates(candidates) {
   });
 }
 
+
+/**
+ * Returns a sort rank for one display candidate.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function publicCandidateRank(candidate) {
   if (candidate.check && candidate.check.confirmed) return 0;
   if (isMasterCandidate(candidate)) return 1;
@@ -592,12 +728,24 @@ function publicCandidateRank(candidate) {
   return 6;
 }
 
+
+/**
+ * Finds the least-bad candidate when no HD or strong stream exists.
+ * @param {*} candidates Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function bestFallbackCandidate(candidates) {
   return [...candidates].sort((a, b) => {
     return (candidateQualityHeight(b) - candidateQualityHeight(a)) || (b.score - a.score) || (b.at - a.at);
   })[0] || null;
 }
 
+
+/**
+ * Removes duplicate candidates by canonical URL.
+ * @param {*} candidates Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function uniqueCandidates(candidates) {
   const seen = new Set();
   return candidates.filter(candidate => {
@@ -607,17 +755,35 @@ function uniqueCandidates(candidates) {
   });
 }
 
+
+/**
+ * Checks whether a candidate is an HLS/DASH master playlist.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function isMasterCandidate(candidate) {
   const text = `${candidate.url || ""} ${candidate.path || ""}`;
   return /master|get-master-playlist|\/master(\/|$|\?)/i.test(text);
 }
 
+
+/**
+ * Extracts height such as 720 or 1080 from candidate metadata or URL.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateQualityHeight(candidate) {
   const text = `${candidate.url || ""} ${candidate.path || ""}`;
   const quality = text.match(/(?:\/|_|-)(240|360|480|540|720|1080|1440|2160)(?:p)?(?:\/|\.|_|-|\?|$)/i);
   return quality ? Number(quality[1]) : 0;
 }
 
+
+/**
+ * Returns debounce delay before auto-capture for a candidate.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function delayForCandidate(candidate) {
   if (!candidate) return 2500;
   if (["hls", "dash", "file", "playback"].includes(candidate.kind)) return 300;
@@ -625,16 +791,23 @@ function delayForCandidate(candidate) {
   return 3000;
 }
 
+
+/**
+ * Downloads the best currently confirmed candidate when auto-flow allows it.
+ * @param {*} tabId Input used by this step.
+ * @param {*} reason Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function downloadBestCandidate(tabId, reason) {
   const tabState = getTabState(tabId);
   const candidate = tabState.candidates[0];
   if (!candidate) {
-    tabState.status = "Пока не нашел URL для скачивания.";
+    tabState.status = statusMessage("status.noCandidate");
     notifyPopup(tabId);
     return { ok: false, error: "No candidate" };
   }
   if (reason === "manual" && !(candidate.check && candidate.check.confirmed)) {
-    tabState.status = "Сначала нажми Проверить и подтверди, что это нужное видео.";
+    tabState.status = statusMessage("status.verifyFirst");
     notifyPopup(tabId);
     return { ok: false, error: "Source is not confirmed", state: publicTabState(tabId) };
   }
@@ -642,9 +815,15 @@ async function downloadBestCandidate(tabId, reason) {
   return downloadCandidate(tabId, candidate, reason);
 }
 
+
+/**
+ * Collects media URLs, embeds, page title, and resources visible in the page DOM.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function scanPage(tabId) {
   const tabState = getTabState(tabId);
-  tabState.status = "Сканирую страницу без перезагрузки...";
+  tabState.status = statusMessage("status.scanning");
   tabState.error = "";
   notifyPopup(tabId);
   const tab = await chrome.tabs.get(tabId);
@@ -658,7 +837,7 @@ async function scanPage(tabId) {
   } catch (error) {
     if (!/Receiving end does not exist|Could not establish connection/i.test(String(error && error.message ? error.message : error))) {
       tabState.error = String(error && error.message ? error.message : error);
-      tabState.status = "Не смог просканировать страницу.";
+      tabState.status = statusMessage("status.scanFailed");
       notifyPopup(tabId);
       return { ok: false, error: tabState.error, state: publicTabState(tabId) };
     }
@@ -667,25 +846,39 @@ async function scanPage(tabId) {
       return finishScan(tabId, response, true);
     } catch (fallbackError) {
       tabState.error = String(fallbackError && fallbackError.message ? fallbackError.message : fallbackError);
-      tabState.status = "Не смог просканировать страницу. Нужен Reload расширения или вкладки.";
+      tabState.status = statusMessage("status.scanNeedsReload");
       notifyPopup(tabId);
       return { ok: false, error: tabState.error, state: publicTabState(tabId) };
     }
   }
 }
 
+
+/**
+ * Documents the finish scan helper.
+ * @param {*} tabId Input used by this step.
+ * @param {*} response Input used by this step.
+ * @param {*} usedFallback Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function finishScan(tabId, response, usedFallback) {
   const tabState = getTabState(tabId);
   const total = (response && ((response.videos || 0) + (response.embeds || 0) + (response.resources || 0))) || 0;
   if (!tabState.verifiedStatus) {
     tabState.status = total
-      ? `Скан готов: video ${response.videos || 0}, iframe ${response.embeds || 0}, res ${response.resources || 0}.`
-      : "Скан готов: новых источников нет.";
+      ? statusMessage("status.scanDone", { videos: response.videos || 0, embeds: response.embeds || 0, resources: response.resources || 0 })
+      : statusMessage("status.scanNoNew");
   }
   notifyPopup(tabId);
   return { ok: true, state: publicTabState(tabId), response };
 }
 
+
+/**
+ * Runs the content scan in every frame through chrome.scripting.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function scanPageWithScripting(tabId) {
   const results = await chrome.scripting.executeScript({
     target: { tabId, allFrames: true },
@@ -709,6 +902,11 @@ async function scanPageWithScripting(tabId) {
   return summary;
 }
 
+
+/**
+ * Frame-local scanner injected by chrome.scripting to collect video and embed URLs.
+ * @returns {*} Result used by the caller.
+ */
 function scanFrameForCourseCapture() {
   const mediaExtensions = /\.(mp4|m4v|mov|webm|mkv|m3u8|mpd|ts|m4s)(\?|#|$)/i;
   const embedPatterns = [
@@ -784,6 +982,11 @@ function scanFrameForCourseCapture() {
   };
 }
 
+
+/**
+ * Frame-local scanner injected by chrome.scripting to find player rectangles.
+ * @returns {*} Result used by the caller.
+ */
 function scanPlayerRectForCourseCapture() {
   const embedPatterns = [
     /vk\.com\/video_ext\.php/i,
@@ -916,16 +1119,24 @@ function scanPlayerRectForCourseCapture() {
   return candidates[0] || null;
 }
 
+
+/**
+ * Looks up a candidate by URL and starts the download flow.
+ * @param {*} tabId Input used by this step.
+ * @param {*} url Input used by this step.
+ * @param {*} reason Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function downloadCandidateByUrl(tabId, url, reason) {
   const tabState = getTabState(tabId);
   const candidate = tabState.candidates.find(item => item.url === url);
   if (!candidate) {
-    tabState.status = "Этот URL уже не найден в текущем списке источников.";
+    tabState.status = statusMessage("status.candidateNotFound");
     notifyPopup(tabId);
     return { ok: false, error: "Candidate not found" };
   }
   if (reason === "manual" && !(candidate.check && candidate.check.confirmed)) {
-    tabState.status = "Сначала нажми Проверить и подтверди, что это нужное видео.";
+    tabState.status = statusMessage("status.verifyFirst");
     notifyPopup(tabId);
     return { ok: false, error: "Source is not confirmed", state: publicTabState(tabId) };
   }
@@ -933,11 +1144,18 @@ async function downloadCandidateByUrl(tabId, url, reason) {
   return downloadCandidate(tabId, candidate, reason);
 }
 
+
+/**
+ * Looks up a candidate by URL and starts metadata verification.
+ * @param {*} tabId Input used by this step.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function verifyCandidateByUrl(tabId, url) {
   const tabState = getTabState(tabId);
   const candidate = tabState.candidates.find(item => item.url === url);
   if (!candidate) {
-    tabState.status = "Этот URL уже не найден в текущем списке источников.";
+    tabState.status = statusMessage("status.candidateNotFound");
     notifyPopup(tabId);
     return { ok: false, error: "Candidate not found", state: publicTabState(tabId) };
   }
@@ -945,7 +1163,7 @@ async function verifyCandidateByUrl(tabId, url) {
   const tab = await chrome.tabs.get(tabId);
   tabState.verifyingSource = true;
   tabState.error = "";
-  tabState.status = `Проверяю источник через yt-dlp: ${candidate.host || "найденный URL"}...`;
+  tabState.status = statusMessage("status.verifyingWithHost", { host: candidate.host || "found URL" });
   notifyPopup(tabId);
 
   try {
@@ -961,23 +1179,31 @@ async function verifyCandidateByUrl(tabId, url) {
     candidate.check = normalizeVerifyInfo(response.info);
     tabState.verifyingSource = false;
     tabState.verifiedStatus = candidate.check.confirmed
-      ? `Источник подтвержден: ${candidate.check.title}${candidate.check.duration ? `, ${candidate.check.duration}` : ""}. Теперь можно нажать Скачать.`
+      ? statusMessage("status.sourceConfirmed", { title: candidate.check.title, duration: candidate.check.duration ? `, ${candidate.check.duration}` : "" })
       : candidate.check.ok
-        ? `Источник читается, но НЕ подтвержден: ${candidate.check.warning || "нет нормального названия или длительности"}. Не скачивай без проверки.`
-      : `Проверка не прошла: ${candidate.check.error || "не удалось получить метаданные"}`;
+        ? statusMessage("status.sourceReadableNotConfirmed", { warning: candidate.check.warning || "no normal title or duration" })
+      : statusMessage("status.verificationFailed", { error: candidate.check.error || "metadata unavailable" });
     tabState.status = tabState.verifiedStatus;
     notifyPopup(tabId);
     return { ok: candidate.check.confirmed, info: candidate.check, state: publicTabState(tabId) };
   } catch (error) {
     candidate.check = { ok: false, error: String(error && error.message ? error.message : error) };
     tabState.verifyingSource = false;
-    tabState.verifiedStatus = `Проверка не прошла: ${candidate.check.error}`;
+    tabState.verifiedStatus = statusMessage("status.verificationFailed", { error: candidate.check.error });
     tabState.status = tabState.verifiedStatus;
     notifyPopup(tabId);
     return { ok: false, error: candidate.check.error, state: publicTabState(tabId) };
   }
 }
 
+
+/**
+ * Sends a verified candidate to the native host for downloading.
+ * @param {*} tabId Input used by this step.
+ * @param {*} candidate Input used by this step.
+ * @param {*} reason Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function downloadCandidate(tabId, candidate, reason) {
   const tabState = getTabState(tabId);
   const tab = await chrome.tabs.get(tabId);
@@ -986,7 +1212,7 @@ async function downloadCandidate(tabId, candidate, reason) {
   tabState.downloadOutcome = "";
   tabState.downloadProgress = null;
   tabState.verifiedStatus = "";
-  tabState.status = `Скачиваю через yt-dlp: ${candidate.label} с ${candidate.host || "найденного URL"}...`;
+  tabState.status = statusMessage("status.downloadingCandidate", { label: candidate.label, host: candidate.host || "found URL" });
   tabState.error = "";
   notifyPopup(tabId);
 
@@ -1003,7 +1229,7 @@ async function downloadCandidate(tabId, candidate, reason) {
       cookies: await collectCookies([candidate.url, tab.url]),
       settings
     });
-    tabState.status = response.message || "Скачивание началось.";
+    tabState.status = statusFromExternal(response.message, "status.downloadStarted");
     notifyPopup(tabId);
     return { ok: true, response, state: publicTabState(tabId) };
   } catch (error) {
@@ -1011,12 +1237,18 @@ async function downloadCandidate(tabId, candidate, reason) {
     tabState.downloading = false;
     tabState.downloadOutcome = "error";
     tabState.error = String(error && error.message ? error.message : error);
-    tabState.status = "yt-dlp не смог скачать. Можно включить запись вкладки.";
+    tabState.status = statusMessage("status.downloadFailedCanRecord");
     notifyPopup(tabId);
     return { ok: false, error: tabState.error, state: publicTabState(tabId) };
   }
 }
 
+
+/**
+ * Collects Chrome cookies for the candidate URLs so yt-dlp can access logged-in pages.
+ * @param {*} urls Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function collectCookies(urls) {
   const seen = new Set();
   const result = [];
@@ -1045,13 +1277,19 @@ async function collectCookies(urls) {
   return result;
 }
 
+
+/**
+ * Initializes a file-backed recording session before MediaRecorder chunks start arriving.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function startRecording(tabId) {
   const tabState = getTabState(tabId);
-  tabState.status = "Ищу область плеера для записи...";
+  tabState.status = statusMessage("status.findingRecordingArea");
   notifyPopup(tabId);
   let crop = await getRecordingCrop(tabId);
   if (crop && crop.cancelled) {
-    tabState.status = "Выбор области записи отменен.";
+    tabState.status = statusMessage("status.recordingAreaCancelled");
     tabState.busy = false;
     tabState.recording = false;
     notifyPopup(tabId);
@@ -1059,7 +1297,7 @@ async function startRecording(tabId) {
   }
   if (crop && crop.rect) {
     await lockRecordingView(tabId);
-    tabState.status = "Плеер выбран. Нажми Play на видео, запись начнется через 5 секунд.";
+    tabState.status = statusMessage("status.playerSelectedCountdown");
     notifyPopup(tabId);
     await showRecordingCountdown(tabId, 5);
     await waitBeforeRecording(5000);
@@ -1073,8 +1311,8 @@ async function startRecording(tabId) {
   tabState.recordingStartedAt = Date.now();
   tabState.recordingBytes = 0;
   tabState.status = crop
-    ? `Идет запись области плеера: ${crop.label || crop.selector || "player"}.`
-    : "Идет запись текущей вкладки вместе с аудио...";
+    ? statusMessage("status.recordingPlayerArea", { label: crop.label || crop.selector || "player" })
+    : statusMessage("status.recordingTabAudio");
   tabState.error = "";
   notifyPopup(tabId);
   await chrome.runtime.sendMessage({
@@ -1086,14 +1324,31 @@ async function startRecording(tabId) {
   });
 }
 
+
+/**
+ * Waits for the page to paint before starting visual recording.
+ * @returns {*} Result used by the caller.
+ */
 function waitForPagePaint() {
   return new Promise(resolve => setTimeout(resolve, 250));
 }
 
+
+/**
+ * Waits a fixed delay while the recording target remains locked.
+ * @param {*} ms Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function waitBeforeRecording(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+
+/**
+ * Requests the selected recording rectangle from the content script.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function getRecordingCrop(tabId) {
   try {
     const response = await chrome.tabs.sendMessage(tabId, { type: "SELECT_PLAYER_RECT" }, { frameId: 0 });
@@ -1115,24 +1370,36 @@ async function getRecordingCrop(tabId) {
   }
 }
 
+
+/**
+ * Completes the current recording, remuxes it when possible, and reports the saved file.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function stopRecording(tabId) {
   if (typeof tabId !== "number") {
     const tab = await getActiveTab();
     tabId = tab.id;
   }
   const tabState = getTabState(tabId);
-  tabState.status = "Останавливаю запись и сохраняю файл...";
+  tabState.status = statusMessage("status.stoppingRecording");
   notifyPopup(tabId);
   const response = await chrome.runtime.sendMessage({ type: "STOP_OFFSCREEN_RECORDING", tabId });
   if (response && response.error) {
     tabState.error = response.error;
-    tabState.status = `Не смог остановить запись: ${response.error}`;
+    tabState.status = statusMessage("status.stopRecordingFailed", { error: response.error });
     notifyPopup(tabId);
   }
   await unlockRecordingView(tabId);
   return { tabId, response };
 }
 
+
+/**
+ * Asks the content script to lock scrolling and keep the selected player fixed.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function lockRecordingView(tabId) {
   try {
     const response = await chrome.tabs.sendMessage(tabId, { type: "LOCK_RECORDING_VIEW" }, { frameId: 0 });
@@ -1143,6 +1410,12 @@ async function lockRecordingView(tabId) {
   }
 }
 
+
+/**
+ * Asks the content script to remove recording lock UI.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function unlockRecordingView(tabId) {
   try {
     await chrome.tabs.sendMessage(tabId, { type: "UNLOCK_RECORDING_VIEW" }, { frameId: 0 });
@@ -1151,6 +1424,13 @@ async function unlockRecordingView(tabId) {
   }
 }
 
+
+/**
+ * Displays the countdown before recording starts.
+ * @param {*} tabId Input used by this step.
+ * @param {*} seconds Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function showRecordingCountdown(tabId, seconds) {
   try {
     await chrome.tabs.sendMessage(tabId, { type: "SHOW_RECORDING_COUNTDOWN", seconds }, { frameId: 0 });
@@ -1159,6 +1439,11 @@ async function showRecordingCountdown(tabId, seconds) {
   }
 }
 
+
+/**
+ * Finds and stops the currently active recording tab.
+ * @returns {*} Result used by the caller.
+ */
 async function stopCurrentRecording() {
   const recordingTabId = findRecordingTabId();
   if (typeof recordingTabId === "number") {
@@ -1170,6 +1455,11 @@ async function stopCurrentRecording() {
   await stopRecording(tab.id);
 }
 
+
+/**
+ * Returns the tab id that currently owns an active recording.
+ * @returns {*} Result used by the caller.
+ */
 function findRecordingTabId() {
   for (const [tabId, tabState] of state.tabs.entries()) {
     if (tabState.recording) return tabId;
@@ -1177,6 +1467,11 @@ function findRecordingTabId() {
   return null;
 }
 
+
+/**
+ * Creates the offscreen recorder document when it does not already exist.
+ * @returns {*} Result used by the caller.
+ */
 async function ensureOffscreenDocument() {
   const offscreenUrl = chrome.runtime.getURL("offscreen.html");
   const contexts = await chrome.runtime.getContexts({
@@ -1191,6 +1486,11 @@ async function ensureOffscreenDocument() {
   });
 }
 
+
+/**
+ * Opens the native messaging port and wires disconnect/progress handlers.
+ * @returns {*} Result used by the caller.
+ */
 function connectNative() {
   if (state.nativePort) return state.nativePort;
   try {
@@ -1218,6 +1518,12 @@ function connectNative() {
   }
 }
 
+
+/**
+ * Applies progress and completion events received from the native host.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function handleNativeMessage(message) {
   if (!message || typeof message.tabId !== "number") return;
 
@@ -1261,7 +1567,7 @@ async function handleNativeMessage(message) {
     tabState.downloadOutcome = "";
     tabState.downloadProgress = null;
     tabState.armed = false;
-    tabState.status = message.message || "Скачивание отменено.";
+    tabState.status = statusFromExternal(message.message, "status.downloadCancelled");
     notifyPopup(message.tabId);
     return;
   }
@@ -1282,13 +1588,19 @@ async function handleNativeMessage(message) {
   notifyPopup(message.tabId);
 }
 
+
+/**
+ * Cancels an active yt-dlp process for the requested browser tab.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 async function cancelDownload(tabId) {
   if (typeof tabId !== "number") {
     const tab = await getActiveTab();
     tabId = tab.id;
   }
   const tabState = getTabState(tabId);
-  tabState.status = "Останавливаю скачивание yt-dlp...";
+  tabState.status = statusMessage("status.stoppingDownload");
   tabState.cancellingDownload = true;
   notifyPopup(tabId);
   const response = await sendNative({
@@ -1300,11 +1612,17 @@ async function cancelDownload(tabId) {
   tabState.cancellingDownload = false;
   tabState.downloadOutcome = "";
   tabState.armed = false;
-  tabState.status = response.message || "Скачивание остановлено.";
+  tabState.status = statusFromExternal(response.message, "status.downloadStopped");
   notifyPopup(tabId);
   return { tabId, response };
 }
 
+
+/**
+ * Adds derived labels and grouping metadata to a candidate.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function enrichCandidate(candidate) {
   const info = classifyUrl(candidate.url);
   return {
@@ -1317,6 +1635,13 @@ function enrichCandidate(candidate) {
   };
 }
 
+
+/**
+ * Builds a friendly filename hint from candidate and page metadata.
+ * @param {*} candidate Input used by this step.
+ * @param {*} candidates Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function buildFilenameHint(candidate, candidates) {
   return [
     `video-${candidateVideoNumber(candidate, candidates || [])}`,
@@ -1325,6 +1650,13 @@ function buildFilenameHint(candidate, candidates) {
   ].filter(Boolean).join("-");
 }
 
+
+/**
+ * Calculates the visible video number for grouped candidates.
+ * @param {*} candidate Input used by this step.
+ * @param {*} candidates Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateVideoNumber(candidate, candidates) {
   const keys = [];
   for (const item of candidates) {
@@ -1334,6 +1666,12 @@ function candidateVideoNumber(candidate, candidates) {
   return Math.max(1, keys.indexOf(candidateGroupKey(candidate)) + 1);
 }
 
+
+/**
+ * Builds a grouping key so variants of the same video stay together.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateGroupKey(candidate) {
   try {
     const parsed = new URL(candidate.url);
@@ -1357,6 +1695,12 @@ function candidateGroupKey(candidate) {
   }
 }
 
+
+/**
+ * Builds a quality or role label such as master, HD 720p, or DASH.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateVariantLabel(candidate) {
   const text = `${candidate.url} ${candidate.path || ""}`;
   if (candidate.kind === "vkvideo") return "current-video";
@@ -1372,6 +1716,12 @@ function candidateVariantLabel(candidate) {
   return "source";
 }
 
+
+/**
+ * Documents the candidate short id helper.
+ * @param {*} candidate Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function candidateShortId(candidate) {
   try {
     const parsed = new URL(candidate.url);
@@ -1386,6 +1736,12 @@ function candidateShortId(candidate) {
   }
 }
 
+
+/**
+ * Documents the classify url helper.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function classifyUrl(url) {
   let parsed = null;
   try {
@@ -1395,10 +1751,10 @@ function classifyUrl(url) {
   }
 
   let kind = "unknown";
-  let label = "возможный media URL";
+  let label = "possible media URL";
   if (DIRECT_FILE_EXTENSIONS.test(url)) {
     kind = "file";
-    label = "видеофайл";
+    label = "video file";
   } else if (canonicalVkVideoUrl(url)) {
     kind = "vkvideo";
     label = "VK Video";
@@ -1407,28 +1763,28 @@ function classifyUrl(url) {
     label = "YouTube";
   } else if (HLS_EXTENSION.test(url)) {
     kind = "hls";
-    label = "HLS поток (.m3u8)";
+    label = "HLS stream (.m3u8)";
   } else if (DASH_EXTENSION.test(url)) {
     kind = "dash";
-    label = "DASH поток (.mpd)";
+    label = "DASH stream (.mpd)";
   } else if (/m3u8|hls|master|playlist/i.test(url)) {
     kind = "hls";
-    label = "HLS поток";
+    label = "HLS stream";
   } else if (/mpd|dash|manifest/i.test(url)) {
     kind = "dash";
-    label = "DASH поток";
+    label = "DASH stream";
   } else if (SEGMENT_EXTENSION.test(url)) {
     kind = "segment";
-    label = "сегмент потока";
+    label = "stream segment";
   } else if (/vk\.com\/video_ext\.php/i.test(url)) {
     kind = "embed";
-    label = "VK embed-плеер";
+    label = "VK embed player";
   } else if (/kinescope\.io\/embed\//i.test(url)) {
     kind = "embed";
-    label = "Kinescope embed-плеер";
+    label = "Kinescope embed player";
   } else if (isEmbedPlayerUrl(url)) {
     kind = "embed";
-    label = "embed-плеер";
+    label = "embed player";
   } else if (/videoplayback/i.test(url)) {
     kind = "playback";
     label = "video playback";
@@ -1442,6 +1798,12 @@ function classifyUrl(url) {
   };
 }
 
+
+/**
+ * Strips YouTube playlist context so only the central watch video is downloaded.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function canonicalYouTubeWatchUrl(url) {
   try {
     const parsed = new URL(url);
@@ -1453,10 +1815,22 @@ function canonicalYouTubeWatchUrl(url) {
   }
 }
 
+
+/**
+ * Returns a canonical page URL for sites where the current page itself is the video.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function canonicalPageVideoUrl(url) {
   return canonicalYouTubeWatchUrl(url) || canonicalVkVideoUrl(url);
 }
 
+
+/**
+ * Detects sites where only the current page URL should be treated as the source.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function isSingleVideoPageUrl(url) {
   try {
     const parsed = new URL(url);
@@ -1471,6 +1845,12 @@ function isSingleVideoPageUrl(url) {
   }
 }
 
+
+/**
+ * Extracts a YouTube video id from a parsed URL.
+ * @param {*} parsed Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function youtubeVideoIdFromUrl(parsed) {
   const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
   if (host === "youtube.com" || host === "m.youtube.com") {
@@ -1486,11 +1866,23 @@ function youtubeVideoIdFromUrl(parsed) {
   return "";
 }
 
+
+/**
+ * Validates and normalizes a YouTube video id.
+ * @param {*} value Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function cleanYouTubeId(value) {
   const id = String(value || "").trim();
   return /^[a-zA-Z0-9_-]{6,20}$/.test(id) ? id : "";
 }
 
+
+/**
+ * Normalizes VKVideo page URLs to the current video only.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function canonicalVkVideoUrl(url) {
   try {
     const parsed = new URL(url);
@@ -1502,6 +1894,12 @@ function canonicalVkVideoUrl(url) {
   }
 }
 
+
+/**
+ * Extracts a VKVideo id from a parsed URL.
+ * @param {*} parsed Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function vkVideoIdFromUrl(parsed) {
   const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
   if (host !== "vkvideo.ru" && host !== "m.vkvideo.ru") return "";
@@ -1509,9 +1907,15 @@ function vkVideoIdFromUrl(parsed) {
   return match ? match[1] : "";
 }
 
+
+/**
+ * Turns native-host verification metadata into popup-ready confirmation state.
+ * @param {*} info Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function normalizeVerifyInfo(info) {
   if (!info || typeof info !== "object") {
-    return { ok: false, error: "Пустой ответ yt-dlp" };
+    return { ok: false, error: "Empty yt-dlp response" };
   }
   if (info.error) {
     return { ok: false, error: String(info.error) };
@@ -1522,9 +1926,9 @@ function normalizeVerifyInfo(info) {
   const webpageUrl = String(info.webpage_url || info.original_url || "").trim();
   const size = formatApproxSize(info.filesize || info.filesize_approx || info.requested_downloads && estimateRequestedSize(info.requested_downloads));
   const warnings = [];
-  if (!title || looksLikeUrlOrPath(title)) warnings.push("yt-dlp не вернул нормальное название видео");
-  if (!duration) warnings.push("yt-dlp не вернул длительность");
-  if (/generic|hls|native/i.test(extractor) && !duration) warnings.push("это похоже на технический HLS URL, а не на страницу видео");
+  if (!title || looksLikeUrlOrPath(title)) warnings.push("yt-dlp did not return a normal video title");
+  if (!duration) warnings.push("yt-dlp did not return duration");
+  if (/generic|hls|native/i.test(extractor) && !duration) warnings.push("this looks like a technical HLS URL, not a video page");
   return {
     ok: true,
     confirmed: warnings.length === 0,
@@ -1537,16 +1941,34 @@ function normalizeVerifyInfo(info) {
   };
 }
 
+
+/**
+ * Rejects metadata titles that are really technical URLs or paths.
+ * @param {*} value Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function looksLikeUrlOrPath(value) {
   const text = String(value || "").trim();
   return /^https?:\/\//i.test(text) || /^[\w.-]+\.[a-z]{2,}\//i.test(text) || /[?&](jwt|sign|token|expires|username|view)=/i.test(text);
 }
 
+
+/**
+ * Documents the estimate requested size helper.
+ * @param {*} downloads Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function estimateRequestedSize(downloads) {
   if (!Array.isArray(downloads)) return 0;
   return downloads.reduce((sum, item) => sum + (Number(item.filesize || item.filesize_approx) || 0), 0);
 }
 
+
+/**
+ * Formats duration seconds as h:mm:ss or m:ss.
+ * @param {*} seconds Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function formatDuration(seconds) {
   const value = Number(seconds);
   if (!Number.isFinite(value) || value <= 0) return "";
@@ -1558,6 +1980,12 @@ function formatDuration(seconds) {
   return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
+
+/**
+ * Formats approximate bytes as a readable size.
+ * @param {*} bytes Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function formatApproxSize(bytes) {
   const value = Number(bytes);
   if (!Number.isFinite(value) || value <= 0) return "";
@@ -1571,21 +1999,34 @@ function formatApproxSize(bytes) {
   return `${size.toFixed(size >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+
+/**
+ * Maps native-host progress events to locale-ready popup status payloads.
+ * @param {*} message Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function translateNativeStatus(message) {
   if (!message) return "";
-  if (message.event === "started") return "yt-dlp запущен. Скачивание началось.";
-  if (message.event === "verify_retry") return "Вторая попытка проверки...";
-  if (message.event === "done" && message.ok) return "yt-dlp закончил. Файл лежит в папке downloads.";
-  if (message.event === "done" && !message.ok) return `yt-dlp завершился с ошибкой: ${message.error || "unknown"}`;
+  if (message.event === "started") return statusMessage("status.ytdlpStarted");
+  if (message.event === "verify_retry") return statusMessage("status.verifyRetry");
+  if (message.event === "done" && message.ok) return statusMessage("status.ytdlpDone");
+  if (message.event === "done" && !message.ok) return statusMessage("status.ytdlpFailed", { error: message.error || "unknown" });
   if (message.event === "progress" && message.message) {
-    if (/\[download\]/i.test(message.message)) return "Скачивает фрагменты через yt-dlp...";
-    if (/fragment/i.test(message.message)) return "Скачивает фрагменты через yt-dlp...";
+    if (/\[download\]/i.test(message.message)) return statusMessage("status.ytdlpFragments");
+    if (/fragment/i.test(message.message)) return statusMessage("status.ytdlpFragments");
     if (/ERROR:/i.test(message.message)) return message.message;
     return "";
   }
   return message.message || "";
 }
 
+
+/**
+ * Sends a request to the native host and waits for the matching response.
+ * @param {*} payload Input used by this step.
+ * @param {*} timeoutMs Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function sendNative(payload, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1612,17 +2053,34 @@ function sendNative(payload, timeoutMs = 30000) {
   });
 }
 
+
+/**
+ * Returns the active tab in the current Chrome window.
+ * @returns {*} Result used by the caller.
+ */
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || typeof tab.id !== "number") throw new Error("No active tab");
   return tab;
 }
 
+
+/**
+ * Notifies popup views that a tab state changed.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function notifyPopup(tabId) {
   updateActionBadge(tabId);
   chrome.runtime.sendMessage({ type: "STATE_CHANGED", tabId, state: publicTabState(tabId) }).catch(() => {});
 }
 
+
+/**
+ * Updates the extension toolbar badge for the tab.
+ * @param {*} tabId Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function updateActionBadge(tabId) {
   const tabState = getTabState(tabId);
   let text = "";
@@ -1642,11 +2100,22 @@ function updateActionBadge(tabId) {
   }
 }
 
+
+/**
+ * Documents the get settings helper.
+ * @returns {*} Result used by the caller.
+ */
 async function getSettings() {
   const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
   return normalizeSettings(settings);
 }
 
+
+/**
+ * Merges and validates settings received from the extension before using them on disk or in commands.
+ * @param {*} settings Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function normalizeSettings(settings) {
   const result = { ...DEFAULT_SETTINGS, ...(settings || {}) };
   result.ytDlpPath = String(result.ytDlpPath || DEFAULT_SETTINGS.ytDlpPath).trim();
@@ -1659,6 +2128,15 @@ function normalizeSettings(settings) {
   return result;
 }
 
+
+/**
+ * Constrains numeric settings to the supported range and falls back when input is invalid.
+ * @param {*} value Input used by this step.
+ * @param {*} min Input used by this step.
+ * @param {*} max Input used by this step.
+ * @param {*} fallback Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
 function clampNumber(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;

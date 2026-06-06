@@ -79,6 +79,9 @@ async function startRecording(tabId, streamId, title, crop) {
   if (recorder && recorder.state !== "inactive") {
     throw new Error("Recorder is already running");
   }
+  if (!crop || !crop.rect) {
+    throw new Error("Recording player area is required.");
+  }
 
   currentTabId = tabId;
   currentTitle = title || "course-recording";
@@ -121,12 +124,8 @@ async function startRecording(tabId, streamId, title, crop) {
   freezeAudioData = new Uint8Array(freezeAnalyser.fftSize);
   audioSource.connect(freezeAnalyser);
 
-  outputStream = crop && crop.rect
-    ? await createCroppedStream(stream, crop, audioSource)
-    : stream;
-  if (crop && crop.rect) {
-    startFreezeMonitor();
-  }
+  outputStream = await createCroppedStream(stream, crop, audioSource);
+  startFreezeMonitor();
 
   const mimeType = pickMimeType();
   recorder = new MediaRecorder(outputStream, mimeType ? { mimeType } : undefined);
@@ -143,7 +142,7 @@ async function startRecording(tabId, streamId, title, crop) {
   };
   recorder.onstop = finishRecording;
   recorder.start(1000);
-  sendStatus(tabId, crop && crop.rect ? "Recording the player area with audio..." : "Recording the current tab with audio...", true);
+  sendStatus(tabId, "Recording the player area with audio...", true);
 }
 
 

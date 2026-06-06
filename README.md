@@ -28,7 +28,7 @@ These sources have been verified in local testing. This list is intentionally sm
 | YouTube watch pages | Verified | Uses only the central `watch?v=...` video, strips playlist context, verifies with `yt-dlp`, and downloads with `--no-playlist`. |
 | VKVideo single-video pages | Verified for central-source detection | Uses only the current `vkvideo.ru/video...` URL and ignores recommended videos as separate candidates. |
 | Generic HLS/DASH course players | Verified with confirmation | Shows master/720p+ variants when available and requires `Verify` before `Download`. |
-| Tab recording fallback | Verified | Lets the user select the player area, locks scrolling, waits 5 seconds, and records the current tab with audio. |
+| Player recording fallback | Verified | Lets the user select the player area, locks scrolling, waits 5 seconds, and records that player area with audio. |
 
 When adding a new verified source, record the site/page type, what URL is selected, whether cookies are needed, and whether download and stop behavior were tested.
 
@@ -218,7 +218,7 @@ Video Course Capture can:
 - let you confirm the correct frame so the recording follows the video area instead of the whole page;
 - lock scrolling after confirmation, show a 5-second countdown, and start recording from the same viewport position;
 - keep the visible view locked while recording;
-- capture the current tab with audio;
+- capture a selected player area with audio;
 - save a `.webm` file;
 - remux the recording with `ffmpeg` when available.
 

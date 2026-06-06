@@ -342,6 +342,7 @@ function commandTimeoutMs(type) {
  */
 function shouldSuppressCommandError(type, state) {
   if (!state) return false;
+  if (type === "START_RECORD") return true;
   if (type === "VERIFY_CANDIDATE") return !!state.verifyingSource;
   if (type === "DOWNLOAD_CANDIDATE" || type === "DOWNLOAD_BEST") {
     return !!(state.downloading || state.busy || state.downloadProgress);

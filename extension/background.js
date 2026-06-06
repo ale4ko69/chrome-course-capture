@@ -281,8 +281,8 @@ async function handleMessage(message, sender) {
 
   if (message.type === "START_RECORD") {
     const tab = await getActiveTab();
-    await startRecording(tab.id);
-    return { ok: true, state: publicTabState(tab.id) };
+    const result = await startRecording(tab.id);
+    return { ok: result.ok, error: result.error || "", state: publicTabState(tab.id) };
   }
 
   if (message.type === "STOP_RECORD") {
@@ -345,7 +345,7 @@ async function handleMessage(message, sender) {
       command: "recording_stop",
       tabId: message.tabId,
       recordingId: message.recordingId
-    });
+    }, 120000);
     const tabState = getTabState(message.tabId);
     tabState.recording = false;
     tabState.busy = false;
@@ -1286,23 +1286,29 @@ async function collectCookies(urls) {
 async function startRecording(tabId) {
   const tabState = getTabState(tabId);
   tabState.status = statusMessage("status.findingRecordingArea");
+  tabState.error = "";
   notifyPopup(tabId);
-  let crop = await getRecordingCrop(tabId);
+  const crop = await getRecordingCrop(tabId);
   if (crop && crop.cancelled) {
     tabState.status = statusMessage("status.recordingAreaCancelled");
     tabState.busy = false;
     tabState.recording = false;
     notifyPopup(tabId);
-    return;
+    return { ok: false, error: "Recording area selection cancelled" };
   }
-  if (crop && crop.rect) {
-    await lockRecordingView(tabId);
-    tabState.status = statusMessage("status.playerSelectedCountdown");
+  if (!crop || !crop.rect) {
+    tabState.status = statusMessage("status.recordingPlayerNotFound");
+    tabState.busy = false;
+    tabState.recording = false;
     notifyPopup(tabId);
-    await showRecordingCountdown(tabId, 5);
-    await waitBeforeRecording(5000);
-    await waitForPagePaint();
+    return { ok: false, error: "Recording player area not found" };
   }
+  await lockRecordingView(tabId);
+  tabState.status = statusMessage("status.playerSelectedCountdown");
+  notifyPopup(tabId);
+  await showRecordingCountdown(tabId, 5);
+  await waitBeforeRecording(5000);
+  await waitForPagePaint();
   await ensureOffscreenDocument();
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
   const tab = await chrome.tabs.get(tabId);
@@ -1310,9 +1316,7 @@ async function startRecording(tabId) {
   tabState.busy = true;
   tabState.recordingStartedAt = Date.now();
   tabState.recordingBytes = 0;
-  tabState.status = crop
-    ? statusMessage("status.recordingPlayerArea", { label: crop.label || crop.selector || "player" })
-    : statusMessage("status.recordingTabAudio");
+  tabState.status = statusMessage("status.recordingPlayerArea", { label: crop.label || crop.selector || "player" });
   tabState.error = "";
   notifyPopup(tabId);
   await chrome.runtime.sendMessage({
@@ -1322,6 +1326,7 @@ async function startRecording(tabId) {
     title: tabState.lastTitle || tab.title || "course-recording",
     crop
   });
+  return { ok: true };
 }
 
 
@@ -1354,17 +1359,7 @@ async function getRecordingCrop(tabId) {
     const response = await chrome.tabs.sendMessage(tabId, { type: "SELECT_PLAYER_RECT" }, { frameId: 0 });
     if (response && response.ok && response.crop && response.crop.cancelled) return { cancelled: true };
     if (response && response.ok && response.crop && response.crop.rect) return response.crop;
-  } catch (_) {
-    // Fall back to direct frame execution when the content script is not attached yet.
-  }
-
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: false },
-      func: scanPlayerRectForCourseCapture
-    });
-    const crop = results && results[0] && results[0].result;
-    return crop && crop.rect ? crop : null;
+    return null;
   } catch (_) {
     return null;
   }

@@ -116,7 +116,7 @@
   },
   "sources": {
     "title": "Found variants",
-    "note": "Choose a variant to verify from the list above. URL details are shown here.",
+    "note": "Found URL details.",
     "none": "No variants found yet",
     "foundVia": "Found via: {source}. Click the URL to copy it.",
     "unknown": "unknown",

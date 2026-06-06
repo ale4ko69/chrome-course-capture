@@ -32,6 +32,10 @@ These sources have been verified in local testing. This list is intentionally sm
 
 When adding a new verified source, record the site/page type, what URL is selected, whether cookies are needed, and whether download and stop behavior were tested.
 
+## License
+
+This project is released under the MIT License. See [LICENSE](LICENSE).
+
 ## Project Layout
 
 ```text

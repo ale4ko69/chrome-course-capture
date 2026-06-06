@@ -1,6 +1,6 @@
-# Course Capture
+# Video Course Capture
 
-Course Capture is a Chrome Manifest V3 extension plus a Windows native messaging host for capturing course videos for personal offline use.
+Video Course Capture is a Chrome Manifest V3 extension plus a Windows native messaging host for capturing course videos for personal offline use.
 
 It detects candidate video sources on the current page, lets the user verify the selected source with `yt-dlp`, downloads confirmed sources, and can fall back to recording the current tab with audio when a direct download is not reliable.
 
@@ -155,7 +155,7 @@ After changing extension or native-host files, reload the extension at `chrome:/
 ## Usage
 
 1. Open the course page in Chrome and log in.
-2. Open the Course Capture popup.
+2. Open the Video Course Capture popup.
 3. Click `Начать перехват видео`.
 4. Start playback on the page.
 5. Review the detected variants in the combo box.
@@ -165,7 +165,7 @@ After changing extension or native-host files, reload the extension at `chrome:/
 
 The download button stays disabled until verification succeeds.
 
-If the candidate is readable but does not have trustworthy metadata, Course Capture treats it as not confirmed. This is intentional: a technical HLS playlist can be playable while still being the wrong stream.
+If the candidate is readable but does not have trustworthy metadata, Video Course Capture treats it as not confirmed. This is intentional: a technical HLS playlist can be playable while still being the wrong stream.
 
 ## Candidate Labels
 
@@ -186,15 +186,15 @@ The list is curated:
 - `720p` and higher variants are preferred.
 - Lower-quality variants are shown only when no `720p+` option exists for that video group.
 - Raw stream segments are hidden from the combo box when a better playlist/player option exists.
-- On a YouTube watch page, Course Capture uses only the central video from the current tab URL. Recommended videos and playlist items are not added to the combo box.
-- On a VKVideo page such as `vkvideo.ru/video-18761029_456241640`, Course Capture also uses only the current video URL and ignores recommended videos.
+- On a YouTube watch page, Video Course Capture uses only the central video from the current tab URL. Recommended videos and playlist items are not added to the combo box.
+- On a VKVideo page such as `vkvideo.ru/video-18761029_456241640`, Video Course Capture also uses only the current video URL and ignores recommended videos.
 - Downloads and verification run `yt-dlp` with `--no-playlist`, so a YouTube playlist URL cannot accidentally download the whole playlist.
 
 ## Recording Fallback
 
 If direct download is not available or not trustworthy, use `Запись вкладки`.
 
-Course Capture can:
+Video Course Capture can:
 
 - detect and highlight a player area or iframe before recording;
 - let you confirm the correct frame so the recording follows the video area instead of the whole page;
@@ -275,4 +275,4 @@ This removes the Chrome native messaging registry entry.
 
 ## Legal / Usage Note
 
-Use this tool only for content you are allowed to access and archive. Course Capture is intended for personal workflow automation, not redistribution or DRM circumvention.
+Use this tool only for content you are allowed to access and archive. Video Course Capture is intended for personal workflow automation, not redistribution or DRM circumvention.

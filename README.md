@@ -224,12 +224,6 @@ By default, downloaded and recorded files are saved to:
 downloads/
 ```
 
-The full default path in this local project is:
-
-```text
-D:\MyGitProjects\chrome-course-capture\downloads
-```
-
 You can change the output directory in the popup settings.
 
 ## Diagnostics

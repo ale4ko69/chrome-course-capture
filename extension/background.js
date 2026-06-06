@@ -21,7 +21,7 @@ const EMBED_PLAYER_PATTERNS = [
 const DEFAULT_SETTINGS = {
   ytDlpPath: "C:\\yt-dlp\\yt-dlp.exe",
   ffmpegDir: "C:\\yt-dlp\\ffmpeg\\ffmpeg-7.1-essentials_build\\bin",
-  downloadDir: "D:\\MyGitProjects\\chrome-course-capture\\downloads",
+  downloadDir: "downloads",
   maxDownloadGb: 10,
   mergeFormat: "mp4",
   fragmentRetries: 10,

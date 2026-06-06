@@ -5,7 +5,7 @@
   "help": {
     "title": "Help",
     "requirementsTitle": "Required setup",
-    "requirementExtension": "<strong>Chrome extension</strong>: loaded from <code>D:\\MyGitProjects\\chrome-course-capture\\extension</code>.",
+    "requirementExtension": "<strong>Chrome extension</strong>: loaded unpacked from this repository's <code>extension</code> folder.",
     "requirementNative": "<strong>Native host</strong>: registered with <code>install-native-host.ps1</code>.",
     "requirementNode": "<strong>Node.js</strong>: required to run the native host, currently expected at <code>C:\\Program Files\\nodejs\\node.exe</code>.",
     "requirementYtdlp": "<strong>yt-dlp</strong>: default path is <code>C:\\yt-dlp\\yt-dlp.exe</code>.",

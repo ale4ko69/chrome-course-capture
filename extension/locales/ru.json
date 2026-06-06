@@ -5,7 +5,7 @@
   "help": {
     "title": "Помощь",
     "requirementsTitle": "Что должно быть установлено",
-    "requirementExtension": "<strong>Chrome extension</strong>: загружено из папки <code>D:\\MyGitProjects\\chrome-course-capture\\extension</code>.",
+    "requirementExtension": "<strong>Chrome extension</strong>: загружено из папки <code>extension</code> этого репозитория.",
     "requirementNative": "<strong>Native host</strong>: зарегистрирован скриптом <code>install-native-host.ps1</code>.",
     "requirementNode": "<strong>Node.js</strong>: нужен для запуска native-host, сейчас ожидается <code>C:\\Program Files\\nodejs\\node.exe</code>.",
     "requirementYtdlp": "<strong>yt-dlp</strong>: по умолчанию <code>C:\\yt-dlp\\yt-dlp.exe</code>.",

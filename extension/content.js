@@ -16,6 +16,23 @@ const EMBED_PLAYER_PATTERNS = [
   /\/embed\//i
 ];
 
+/**
+ * Rejects web/app manifests that are page metadata rather than media streams.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
+function isNonMediaManifestUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname.toLowerCase();
+    return /(^|\/)(manifest|site)\.(json|webmanifest)$/.test(pathname)
+      || pathname.endsWith("/manifest.json")
+      || pathname.endsWith(".webmanifest");
+  } catch {
+    return false;
+  }
+}
+
 let scrollLock = null;
 let recordingBanner = null;
 let lastSelectedCropFallback = null;
@@ -1031,7 +1048,7 @@ function reportVideo(video) {
     candidates.add(source.src);
   }
   for (const entry of performance.getEntriesByType("resource")) {
-    if (MEDIA_EXTENSIONS.test(entry.name) || /videoplayback|playlist|manifest|master/i.test(entry.name)) {
+    if (!isNonMediaManifestUrl(entry.name) && (MEDIA_EXTENSIONS.test(entry.name) || /videoplayback|playlist|master/i.test(entry.name))) {
       candidates.add(entry.name);
     }
   }
@@ -1076,7 +1093,7 @@ function reportEmbeds(force = false) {
 function reportPageResources() {
   const candidates = [];
   for (const entry of performance.getEntriesByType("resource")) {
-    if (MEDIA_EXTENSIONS.test(entry.name) || /videoplayback|playlist|manifest|master|m3u8|mpd/i.test(entry.name)) {
+    if (!isNonMediaManifestUrl(entry.name) && (MEDIA_EXTENSIONS.test(entry.name) || /videoplayback|playlist|master|m3u8|mpd/i.test(entry.name))) {
       candidates.push(entry.name);
     }
   }

@@ -385,7 +385,26 @@ async function handleMessage(message, sender) {
  * @returns {*} Result used by the caller.
  */
 function isMediaCandidate(url) {
-  return MEDIA_EXTENSIONS.test(url) || /m3u8|mpd|hls|dash|videoplayback|playlist|manifest|master/i.test(url) || isEmbedPlayerUrl(url);
+  return !isNonMediaManifestUrl(url)
+    && (MEDIA_EXTENSIONS.test(url) || /m3u8|mpd|hls|dash|videoplayback|playlist|master/i.test(url) || isEmbedPlayerUrl(url));
+}
+
+
+/**
+ * Rejects web/app manifests that contain the word "manifest" but are not media.
+ * @param {*} url Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
+function isNonMediaManifestUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname.toLowerCase();
+    return /(^|\/)(manifest|site)\.(json|webmanifest)$/.test(pathname)
+      || pathname.endsWith("/manifest.json")
+      || pathname.endsWith(".webmanifest");
+  } catch {
+    return false;
+  }
 }
 
 
@@ -402,7 +421,7 @@ function scoreUrl(url) {
   if (HLS_EXTENSION.test(url)) return 160;
   if (DASH_EXTENSION.test(url)) return 150;
   if (/m3u8|hls|master|playlist/i.test(url)) return 140;
-  if (/mpd|dash|manifest/i.test(url)) return 130;
+  if (/mpd|dash/i.test(url)) return 130;
   if (DIRECT_FILE_EXTENSIONS.test(url)) return 120;
   if (/videoplayback/i.test(url)) return 115;
   if (/vk\.com\/video_ext\.php/i.test(url)) return 85;
@@ -922,6 +941,17 @@ function scanFrameForCourseCapture() {
   const add = (url, source) => {
     if (url && /^https?:\/\//i.test(url)) candidates.push({ url, source });
   };
+  const isNonMediaManifest = url => {
+    try {
+      const parsed = new URL(url);
+      const pathname = parsed.pathname.toLowerCase();
+      return /(^|\/)(manifest|site)\.(json|webmanifest)$/.test(pathname)
+        || pathname.endsWith("/manifest.json")
+        || pathname.endsWith(".webmanifest");
+    } catch (_) {
+      return false;
+    }
+  };
 
   const queryAllDeep = (selectors, root = document) => {
     const selectorList = Array.isArray(selectors) ? selectors : [selectors];
@@ -968,7 +998,7 @@ function scanFrameForCourseCapture() {
 
   let resources = 0;
   for (const entry of performance.getEntriesByType("resource")) {
-    if (mediaExtensions.test(entry.name) || /videoplayback|playlist|manifest|master|m3u8|mpd/i.test(entry.name)) {
+    if (!isNonMediaManifest(entry.name) && (mediaExtensions.test(entry.name) || /videoplayback|playlist|master|m3u8|mpd/i.test(entry.name))) {
       resources += 1;
       add(entry.name, "scan:resource");
     }
@@ -1765,7 +1795,7 @@ function classifyUrl(url) {
   } else if (/m3u8|hls|master|playlist/i.test(url)) {
     kind = "hls";
     label = "HLS stream";
-  } else if (/mpd|dash|manifest/i.test(url)) {
+  } else if (/mpd|dash/i.test(url)) {
     kind = "dash";
     label = "DASH stream";
   } else if (SEGMENT_EXTENSION.test(url)) {

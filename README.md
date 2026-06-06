@@ -156,12 +156,12 @@ After changing extension or native-host files, reload the extension at `chrome:/
 
 1. Open the course page in Chrome and log in.
 2. Open the Video Course Capture popup.
-3. Click `Начать перехват видео`.
+3. Click `Start video capture`.
 4. Start playback on the page.
 5. Review the detected variants in the combo box.
-6. Select a candidate and click `Проверить`.
+6. Select a candidate and click `Verify`.
 7. Confirm that the title, duration, extractor, and size look correct.
-8. Click `Скачать` only after the source is confirmed.
+8. Click `Download` only after the source is confirmed.
 
 The download button stays disabled until verification succeeds.
 
@@ -172,12 +172,12 @@ If the candidate is readable but does not have trustworthy metadata, Video Cours
 The popup uses labels such as:
 
 ```text
-1. HLS PL - видео 1 - master
-2. HLS PL - видео 1 - HD 720p
-3. HLS PL - видео 2 - FullHD 1080p
-4. плеер - видео 3 - player
-5. YouTube - видео 4 - текущее видео
-6. HLS PL - видео 3 - 480p (нет 720+)
+1. HLS PL - video 1 - master
+2. HLS PL - video 1 - HD 720p
+3. HLS PL - video 2 - FullHD 1080p
+4. player - video 3 - player
+5. YouTube - video 4 - current video
+6. HLS PL - video 3 - 480p (no 720+)
 ```
 
 The list is curated:
@@ -192,7 +192,7 @@ The list is curated:
 
 ## Recording Fallback
 
-If direct download is not available or not trustworthy, use `Запись вкладки`.
+If direct download is not available or not trustworthy, use `Tab recording`.
 
 Video Course Capture can:
 

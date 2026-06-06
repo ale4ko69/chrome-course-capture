@@ -1,3 +1,8 @@
+// Video Course Capture
+// Developed and maintained by Alexey Kagansky
+// Copyright (c) 2026 Alexey Kagansky
+// Repository: https://github.com/ale4ko69/chrome-course-capture
+
 const elements = {
   badge: document.getElementById("badge"),
   badgeIcon: document.getElementById("badgeIcon"),

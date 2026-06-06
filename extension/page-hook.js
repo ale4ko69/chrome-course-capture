@@ -1,3 +1,8 @@
+// Video Course Capture
+// Developed and maintained by Alexey Kagansky
+// Copyright (c) 2026 Alexey Kagansky
+// Repository: https://github.com/ale4ko69/chrome-course-capture
+
 (() => {
   const MARKER = "course-capture-page-hook";
   const MEDIA_URL = /https?:\/\/[^\s"'<>\\]+?(?:\.m3u8|\.mpd|\.mp4|\.m4v|\.mov|\.webm|\/api\/playlist\/(?:master|media)\/|get-(?:master|media)-playlist)[^\s"'<>\\]*/gi;

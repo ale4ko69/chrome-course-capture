@@ -1,10 +1,17 @@
+/*
+ * Video Course Capture
+ * Developed and maintained by Alexey Kagansky
+ * Copyright (c) 2026 Alexey Kagansky
+ * Repository: https://github.com/ale4ko69/chrome-course-capture
+ */
+
 * {
   box-sizing: border-box;
 }
 
 body {
-  width: 390px;
-  height: 520px;
+  width: 430px;
+  height: 540px;
   margin: 0;
   font-family: "Segoe UI", Arial, sans-serif;
   color: #1d2430;
@@ -16,7 +23,7 @@ main {
   display: flex;
   flex-direction: column;
   padding: 12px 12px 14px;
-  height: 520px;
+  height: 540px;
   overflow: hidden;
 }
 
@@ -46,6 +53,15 @@ h2 {
   text-transform: uppercase;
   color: #657184;
   letter-spacing: 0;
+}
+
+.version-footer {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  color: #7a8494;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .sources-note {

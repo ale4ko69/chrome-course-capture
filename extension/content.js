@@ -136,9 +136,9 @@ function initContentI18n() {
 
 async function ensureContentMessages() {
   if (contentMessagesPromise) return contentMessagesPromise;
-  contentMessagesPromise = chrome.storage.local.get({ language: "ru" })
+  contentMessagesPromise = chrome.storage.local.get(["language"])
     .then(config => {
-      contentLanguage = normalizeContentLanguage(config.language);
+      contentLanguage = normalizeContentLanguage(config.language || detectDefaultContentLanguage());
       return loadContentMessages(contentLanguage);
     })
     .then(messages => {
@@ -168,6 +168,20 @@ async function loadContentMessages(language) {
 
 function normalizeContentLanguage(language) {
   return language === "en" ? "en" : "ru";
+}
+
+function detectDefaultContentLanguage() {
+  const locales = [
+    chrome.i18n && typeof chrome.i18n.getUILanguage === "function" ? chrome.i18n.getUILanguage() : "",
+    ...(Array.isArray(navigator.languages) ? navigator.languages : []),
+    navigator.language || ""
+  ];
+  return locales.some(isRussianContentLocale) ? "ru" : "en";
+}
+
+function isRussianContentLocale(locale) {
+  const language = String(locale || "").trim().toLowerCase().split(/[-_]/)[0];
+  return ["ru", "be", "uk", "kk", "ky", "uz", "tg", "az", "hy", "ka", "mo"].includes(language);
 }
 
 function contentT(key, params = {}) {

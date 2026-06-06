@@ -63,8 +63,8 @@ chrome.runtime.onMessage.addListener(message => {
 
 async function init() {
   try {
-    const config = await chrome.storage.local.get({ language: "ru" });
-    currentLanguage = normalizeLanguage(config.language);
+    const config = await chrome.storage.local.get(["language"]);
+    currentLanguage = normalizeLanguage(config.language || detectDefaultLanguage());
     messages = await loadMessages(currentLanguage);
     elements.language.value = currentLanguage;
     applyTranslations();
@@ -111,6 +111,20 @@ async function changeLanguage() {
 
 function normalizeLanguage(language) {
   return language === "en" ? "en" : "ru";
+}
+
+function detectDefaultLanguage() {
+  const locales = [
+    chrome.i18n && typeof chrome.i18n.getUILanguage === "function" ? chrome.i18n.getUILanguage() : "",
+    ...(Array.isArray(navigator.languages) ? navigator.languages : []),
+    navigator.language || ""
+  ];
+  return locales.some(isRussianLocale) ? "ru" : "en";
+}
+
+function isRussianLocale(locale) {
+  const language = String(locale || "").trim().toLowerCase().split(/[-_]/)[0];
+  return ["ru", "be", "uk", "kk", "ky", "uz", "tg", "az", "hy", "ka", "mo"].includes(language);
 }
 
 async function loadMessages(language) {

@@ -1,6 +1,6 @@
 {
-  "name": "com.hotpepper.course_capture",
-  "description": "Course Capture native host for yt-dlp",
+  "name": "com.video_course_capture.native_host",
+  "description": "Video Course Capture native host for yt-dlp",
   "path": "D:\\MyGitProjects\\chrome-course-capture\\native-host\\native-host.cmd",
   "type": "stdio",
   "allowed_origins": [

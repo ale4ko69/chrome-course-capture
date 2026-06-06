@@ -6,7 +6,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$manifestPath = Join-Path $root "native-host\com.hotpepper.course_capture.json"
+$hostName = "com.video_course_capture.native_host"
+$oldHostName = "com.hotpepper.course_capture"
+$manifestPath = Join-Path $root "native-host\$hostName.json"
 $cmdPath = Join-Path $root "native-host\native-host.cmd"
 
 if (-not (Test-Path $cmdPath)) {
@@ -18,7 +20,13 @@ $manifest.path = $cmdPath
 $manifest.allowed_origins = @("chrome-extension://$ExtensionId/")
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path $manifestPath -Encoding UTF8
 
-$registryPath = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.hotpepper.course_capture"
+$registryRoot = "HKCU:\Software\Google\Chrome\NativeMessagingHosts"
+$oldRegistryPath = Join-Path $registryRoot $oldHostName
+if (Test-Path $oldRegistryPath) {
+  Remove-Item -Path $oldRegistryPath -Force
+}
+
+$registryPath = Join-Path $registryRoot $hostName
 New-Item -Path $registryPath -Force | Out-Null
 Set-ItemProperty -Path $registryPath -Name "(default)" -Value $manifestPath
 

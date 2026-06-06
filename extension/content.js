@@ -146,7 +146,7 @@ async function ensureContentMessages() {
       return messages;
     })
     .catch(error => {
-      console.warn("Course Capture could not load content locale", error);
+      console.warn("Video Course Capture could not load content locale", error);
       contentMessages = {};
       return contentMessages;
     });
@@ -197,12 +197,12 @@ function contentT(key, params = {}) {
 
 function contentFallbackMessage(key) {
   const fallback = {
-    "overlay.selectPlayer": "Course Capture: выбери плеер для записи. Esc - отмена.",
+    "overlay.selectPlayer": "Video Course Capture: выбери плеер для записи. Esc - отмена.",
     "overlay.cancelSelection": "Отменить выбор",
-    "overlay.recordingLocked": "Course Capture: идет запись. Прокрутка заблокирована.",
+    "overlay.recordingLocked": "Video Course Capture: идет запись. Прокрутка заблокирована.",
     "overlay.stopRecording": "Остановить запись",
     "overlay.stop": "Стоп",
-    "overlay.countdown": "Course Capture: нажми Play. Запись начнется через {seconds} сек."
+    "overlay.countdown": "Video Course Capture: нажми Play. Запись начнется через {seconds} сек."
   };
   return fallback[key] || key;
 }

@@ -1,4 +1,4 @@
-const NATIVE_HOST = "com.hotpepper.course_capture";
+const NATIVE_HOST = "com.video_course_capture.native_host";
 const MEDIA_EXTENSIONS = /\.(mp4|m4v|mov|webm|mkv|m3u8|mpd|ts|m4s)(\?|#|$)/i;
 const DIRECT_FILE_EXTENSIONS = /\.(mp4|m4v|mov|webm|mkv)(\?|#|$)/i;
 const STREAM_EXTENSIONS = /\.(m3u8|mpd)(\?|#|$)/i;
@@ -60,7 +60,7 @@ chrome.tabs.onRemoved.addListener(tabId => {
 chrome.commands.onCommand.addListener(command => {
   if (command === "stop-recording") {
     stopCurrentRecording().catch(error => {
-      console.warn("Course Capture could not stop recording from shortcut", error);
+      console.warn("Video Course Capture could not stop recording from shortcut", error);
     });
   }
 });
@@ -1034,7 +1034,7 @@ async function collectCookies(urls) {
         });
       }
     } catch (error) {
-      console.warn("Course Capture could not read cookies for URL", url, error);
+      console.warn("Video Course Capture could not read cookies for URL", url, error);
     }
   }
   return result;
@@ -1202,7 +1202,7 @@ function connectNative() {
     });
     port.onMessage.addListener(message => {
       handleNativeMessage(message).catch(error => {
-        console.warn("Course Capture native message handling failed", error);
+        console.warn("Video Course Capture native message handling failed", error);
       });
     });
     return port;

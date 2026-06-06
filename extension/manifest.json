@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Course Capture",
+  "name": "Video Course Capture",
   "description": "Detect course video URLs, download them with yt-dlp, or record the current tab with audio.",
   "version": "0.1.0",
   "minimum_chrome_version": "116",
@@ -20,7 +20,7 @@
     "<all_urls>"
   ],
   "action": {
-    "default_title": "Course Capture",
+    "default_title": "Video Course Capture",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
@@ -43,7 +43,7 @@
       "suggested_key": {
         "default": "Ctrl+Shift+Y"
       },
-      "description": "Stop current Course Capture recording"
+      "description": "Stop current Video Course Capture recording"
     }
   },
   "content_scripts": [

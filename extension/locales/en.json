@@ -18,7 +18,7 @@
     "flow5": "When variants appear, choose one, click <strong>Verify</strong>, check the real title/duration, and only then click <strong>Download</strong>.",
     "flow6": "If downloading starts, watch the <strong>Downloading</strong> status. Stop it with the red <strong>■</strong> button.",
     "flow7": "If direct download is not possible, the extension can start <strong>Tab recording</strong>. It records the tab with audio.",
-    "flow8": "Before recording, Course Capture highlights the detected player area or iframe. Confirm the correct frame so the recording follows the video area, not the whole page.",
+    "flow8": "Before recording, Video Course Capture highlights the detected player area or iframe. Confirm the correct frame so the recording follows the video area, not the whole page.",
     "flow8b": "After confirmation, scrolling is locked, a 5-second countdown is shown, and recording starts from the same viewport position. This keeps the video area from shifting before capture begins.",
     "flow9": "When <strong>Recording</strong> is active, click <strong>Stop</strong> or press <strong>Ctrl+Shift+Y</strong>. The <code>.webm</code> file appears in <strong>Save folder</strong> only after recording stops.",
     "statusTitle": "How to read statuses",
@@ -124,12 +124,12 @@
     }
   },
   "overlay": {
-    "selectPlayer": "Course Capture: choose the player area for recording. Esc - cancel.",
+    "selectPlayer": "Video Course Capture: choose the player area for recording. Esc - cancel.",
     "cancelSelection": "Cancel selection",
-    "recordingLocked": "Course Capture: recording is active. Scrolling is locked.",
+    "recordingLocked": "Video Course Capture: recording is active. Scrolling is locked.",
     "stopRecording": "Stop recording",
     "stop": "Stop",
-    "countdown": "Course Capture: press Play. Recording starts in {seconds} sec."
+    "countdown": "Video Course Capture: press Play. Recording starts in {seconds} sec."
   },
   "errors": {
     "popupConnect": "Popup could not connect to background: {error}",

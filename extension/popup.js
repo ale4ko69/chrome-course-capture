@@ -135,7 +135,7 @@ async function loadMessages(language) {
     return await response.json();
   } catch (error) {
     if (language !== "ru") return loadMessages("ru");
-    console.warn("Course Capture could not load locale", language, error);
+    console.warn("Video Course Capture could not load locale", language, error);
     return {};
   }
 }

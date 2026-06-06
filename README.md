@@ -37,7 +37,7 @@ extension/
 native-host/
   native-host.js      native messaging host, yt-dlp/ffmpeg process control
   native-host.cmd     Windows command wrapper for Node.js
-  com.hotpepper.course_capture.json
+  com.video_course_capture.native_host.json
                       Chrome native messaging manifest, rewritten by installer
 
 install-native-host.ps1
@@ -140,14 +140,14 @@ chrome://extensions
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\install-native-host.ps1 -ExtensionId YOUR_EXTENSION_ID
 ```
 
-The installer rewrites `native-host/com.hotpepper.course_capture.json` with:
+The installer rewrites `native-host/com.video_course_capture.native_host.json` with:
 
 - the absolute path to `native-host.cmd`;
 - the correct `chrome-extension://.../` origin for your loaded extension;
 - the registry entry under:
 
 ```text
-HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.hotpepper.course_capture
+HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.video_course_capture.native_host
 ```
 
 After changing extension or native-host files, reload the extension at `chrome://extensions`.

@@ -1527,7 +1527,7 @@ function connectNative() {
       state.nativePort = null;
       state.nativeReady = false;
       if (chrome.runtime.lastError) {
-        state.lastNativeError = chrome.runtime.lastError.message;
+        state.lastNativeError = formatNativeHostError(chrome.runtime.lastError.message);
       }
     });
     port.onMessage.addListener(message => {
@@ -1538,9 +1538,29 @@ function connectNative() {
     return port;
   } catch (error) {
     state.nativeReady = false;
-    state.lastNativeError = String(error && error.message ? error.message : error);
+    state.lastNativeError = formatNativeHostError(error);
     throw error;
   }
+}
+
+
+/**
+ * Converts low-level Chrome native messaging errors into installation guidance.
+ * @param {*} error Native messaging error or message text.
+ * @returns {string} User-facing guidance for the popup error area.
+ */
+function formatNativeHostError(error) {
+  const message = String(error && error.message ? error.message : error || "");
+  if (/Specified native messaging host not found/i.test(message)) {
+    return "Native host is not registered. Run install-native-host.ps1 with this extension ID, then click Reload in chrome://extensions.";
+  }
+  if (/Access to the specified native messaging host is forbidden/i.test(message)) {
+    return "Native host is registered for a different extension ID. Run install-native-host.ps1 again with the current extension ID.";
+  }
+  if (/Error when communicating with the native messaging host/i.test(message)) {
+    return "Native host is registered but did not start correctly. Check Node.js path and native-host.log.";
+  }
+  return message || "Native host error.";
 }
 
 
@@ -2055,7 +2075,13 @@ function translateNativeStatus(message) {
 function sendNative(payload, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const port = connectNative();
+    let port = null;
+    try {
+      port = connectNative();
+    } catch (error) {
+      reject(new Error(formatNativeHostError(error)));
+      return;
+    }
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error("Native host timeout"));

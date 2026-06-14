@@ -15,14 +15,22 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $hostName = "com.video_course_capture.native_host"
 $oldHostName = "com.hotpepper.course_capture"
-$manifestPath = Join-Path $root "native-host\$hostName.json"
+$manifestTemplatePath = Join-Path $root "native-host\$hostName.json"
+$localConfigDir = Join-Path $env:LOCALAPPDATA "VideoCourseCapture"
+$manifestPath = Join-Path $localConfigDir "$hostName.json"
 $cmdPath = Join-Path $root "native-host\native-host.cmd"
 
 if (-not (Test-Path $cmdPath)) {
   throw "Native host command not found: $cmdPath"
 }
 
-$manifest = Get-Content -Raw -Path $manifestPath | ConvertFrom-Json
+if (-not (Test-Path $manifestTemplatePath)) {
+  throw "Native host manifest template not found: $manifestTemplatePath"
+}
+
+New-Item -ItemType Directory -Path $localConfigDir -Force | Out-Null
+
+$manifest = Get-Content -Raw -Path $manifestTemplatePath | ConvertFrom-Json
 $manifest.path = $cmdPath
 $manifest.allowed_origins = @("chrome-extension://$ExtensionId/")
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path $manifestPath -Encoding UTF8

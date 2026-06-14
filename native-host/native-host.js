@@ -976,12 +976,30 @@ function writeDone(message, ok, code, output) {
  * @returns {*} Result used by the caller.
  */
 function extractLastError(output) {
-  return String(output || "")
+  const errorLine = String(output || "")
     .split(/\r?\n/)
     .map(line => line.trim())
     .filter(Boolean)
     .reverse()
     .find(line => /^ERROR:/i.test(line));
+  return normalizeYtDlpError(errorLine || "");
+}
+
+
+/**
+ * Converts noisy yt-dlp errors into concise messages the popup can display.
+ * @param {*} errorLine Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
+function normalizeYtDlpError(errorLine) {
+  const value = String(errorLine || "");
+  if (/CERTIFICATE_VERIFY_FAILED|certificate verify failed/i.test(value)) {
+    if (/certificate has expired/i.test(value)) {
+      return "ERROR: HTTPS certificate verification failed: the site certificate has expired. Update yt-dlp first; if the site certificate is really expired, choose another source or use an explicit unsafe certificate-bypass option.";
+    }
+    return "ERROR: HTTPS certificate verification failed. Update yt-dlp first; if the site certificate is invalid, choose another source or use an explicit unsafe certificate-bypass option.";
+  }
+  return value;
 }
 
 

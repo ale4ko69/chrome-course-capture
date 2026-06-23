@@ -617,7 +617,7 @@ function scheduleAutoCapture(tabId, delay = null) {
 
 
 /**
- * Keeps the candidate list compact without dropping the confirmed source.
+ * Keeps the candidate list compact without dropping the readable source.
  * @param {*} candidates Input used by this step.
  * @returns {*} Result used by the caller.
  */
@@ -625,9 +625,9 @@ function limitCandidatesPreservingConfirmed(candidates) {
   const sorted = [...candidates].sort((a, b) => (b.score - a.score) || (b.at - a.at));
   const limited = sorted.slice(0, 80);
   for (const candidate of sorted) {
-    if (!(candidate.check && candidate.check.confirmed)) continue;
+    if (!(candidate.check && candidate.check.ok)) continue;
     if (limited.some(item => item.url === candidate.url)) continue;
-    const replaceIndex = [...limited].reverse().findIndex(item => !(item.check && item.check.confirmed));
+    const replaceIndex = [...limited].reverse().findIndex(item => !(item.check && item.check.ok));
     if (replaceIndex < 0) continue;
     limited[limited.length - 1 - replaceIndex] = candidate;
   }
@@ -674,7 +674,7 @@ function publicCandidates(candidates) {
  */
 function groupHasStrongPublicCandidate(group) {
   return group.some(candidate => {
-    if (candidate.check && candidate.check.confirmed) return true;
+    if (candidate.check && candidate.check.ok) return true;
     if (isMasterCandidate(candidate)) return true;
     if (candidateQualityHeight(candidate) >= 720) return true;
     return ["youtube", "vkvideo", "embed", "hls", "dash", "file"].includes(candidate.kind);
@@ -689,7 +689,7 @@ function groupHasStrongPublicCandidate(group) {
  */
 function isWeakTechnicalGroup(group) {
   return !group.some(candidate => {
-    if (candidate.check && candidate.check.confirmed) return true;
+    if (candidate.check && candidate.check.ok) return true;
     if (isMasterCandidate(candidate)) return true;
     if (candidateQualityHeight(candidate) >= 720) return true;
     return ["youtube", "vkvideo", "embed", "hls", "dash", "file"].includes(candidate.kind);
@@ -703,7 +703,7 @@ function isWeakTechnicalGroup(group) {
  * @returns {*} Result used by the caller.
  */
 function selectPublicCandidatesForGroup(group) {
-  const confirmed = group.filter(candidate => candidate.check && candidate.check.confirmed);
+  const confirmed = group.filter(candidate => candidate.check && candidate.check.ok);
   const playable = group.filter(candidate => candidate.kind !== "segment");
   const master = playable.filter(isMasterCandidate);
   const high = playable.filter(candidate => !isMasterCandidate(candidate) && candidateQualityHeight(candidate) >= 720);
@@ -735,7 +735,7 @@ function sortPublicCandidates(candidates) {
  * @returns {*} Result used by the caller.
  */
 function publicCandidateRank(candidate) {
-  if (candidate.check && candidate.check.confirmed) return 0;
+  if (candidate.check && candidate.check.ok) return 0;
   if (isMasterCandidate(candidate)) return 1;
   const height = candidateQualityHeight(candidate);
   if (candidate.kind === "vkvideo") return 2;
@@ -812,7 +812,7 @@ function delayForCandidate(candidate) {
 
 
 /**
- * Downloads the best currently confirmed candidate when auto-flow allows it.
+ * Downloads the best currently readable candidate when auto-flow allows it.
  * @param {*} tabId Input used by this step.
  * @param {*} reason Input used by this step.
  * @returns {*} Result used by the caller.
@@ -825,10 +825,10 @@ async function downloadBestCandidate(tabId, reason) {
     notifyPopup(tabId);
     return { ok: false, error: "No candidate" };
   }
-  if (reason === "manual" && !(candidate.check && candidate.check.confirmed)) {
+  if (reason === "manual" && !(candidate.check && candidate.check.ok)) {
     tabState.status = statusMessage("status.verifyFirst");
     notifyPopup(tabId);
-    return { ok: false, error: "Source is not confirmed", state: publicTabState(tabId) };
+    return { ok: false, error: "Source is not readable yet", state: publicTabState(tabId) };
   }
 
   return downloadCandidate(tabId, candidate, reason);
@@ -1165,10 +1165,10 @@ async function downloadCandidateByUrl(tabId, url, reason) {
     notifyPopup(tabId);
     return { ok: false, error: "Candidate not found" };
   }
-  if (reason === "manual" && !(candidate.check && candidate.check.confirmed)) {
+  if (reason === "manual" && !(candidate.check && candidate.check.ok)) {
     tabState.status = statusMessage("status.verifyFirst");
     notifyPopup(tabId);
-    return { ok: false, error: "Source is not confirmed", state: publicTabState(tabId) };
+    return { ok: false, error: "Source is not readable yet", state: publicTabState(tabId) };
   }
 
   return downloadCandidate(tabId, candidate, reason);
@@ -1215,7 +1215,7 @@ async function verifyCandidateByUrl(tabId, url) {
       : statusMessage("status.verificationFailed", { error: candidate.check.error || "metadata unavailable" });
     tabState.status = tabState.verifiedStatus;
     notifyPopup(tabId);
-    return { ok: candidate.check.confirmed, info: candidate.check, state: publicTabState(tabId) };
+    return { ok: candidate.check.ok, info: candidate.check, state: publicTabState(tabId) };
   } catch (error) {
     candidate.check = { ok: false, error: String(error && error.message ? error.message : error) };
     tabState.verifyingSource = false;

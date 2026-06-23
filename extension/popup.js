@@ -509,7 +509,7 @@ function downloadSelectedSource() {
 
 
 /**
- * Checks whether the selected candidate is the same candidate that was confirmed.
+ * Checks whether the selected candidate is the same candidate that yt-dlp could read.
  * @param {*} state Input used by this step.
  * @returns {*} Result used by the caller.
  */
@@ -517,7 +517,7 @@ function selectedCandidateIsVerified(state) {
   const url = elements.sourceSelect.value;
   if (!url) return false;
   const candidate = (state.candidates || []).find(item => item.url === url);
-  return !!(candidate && candidate.check && candidate.check.confirmed);
+  return !!(candidate && candidate.check && candidate.check.ok);
 }
 
 
@@ -530,7 +530,7 @@ function renderCandidateCheck(candidate) {
   const check = candidate.check;
   if (!check) return null;
   const box = document.createElement("section");
-  box.className = `source-check ${check.confirmed ? "ok" : "bad"}`;
+  box.className = `source-check ${check.ok ? "ok" : "bad"}`;
   if (!check.ok) {
     box.textContent = t("check.failed", { error: check.error || t("check.noMetadata") });
     return box;

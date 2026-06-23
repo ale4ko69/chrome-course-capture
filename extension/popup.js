@@ -537,7 +537,7 @@ function renderCandidateCheck(candidate) {
   }
   if (!check.confirmed) {
     box.textContent = [
-      t("check.notConfirmed", { warning: check.warning || t("check.noReliableMetadata") }),
+      t("check.notConfirmed", { warning: formatCheckWarnings(check) }),
       check.title ? `title: ${check.title}` : "",
       check.extractor || ""
     ].filter(Boolean).join(" · ");
@@ -551,6 +551,22 @@ function renderCandidateCheck(candidate) {
   ].filter(Boolean);
   box.textContent = lines.join(" · ");
   return box;
+}
+
+
+/**
+ * Formats verification warning codes into localized popup text.
+ * @param {*} check Input used by this step.
+ * @returns {*} Result used by the caller.
+ */
+function formatCheckWarnings(check) {
+  const codes = Array.isArray(check.warningCodes) ? check.warningCodes : [];
+  const messages = codes
+    .map(code => t(`check.warnings.${code}`))
+    .filter(Boolean)
+    .filter(message => !/^check\.warnings\./.test(message));
+  if (messages.length) return messages.join("; ");
+  return check.warning || t("check.noReliableMetadata");
 }
 
 

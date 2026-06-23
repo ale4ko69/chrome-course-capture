@@ -89,6 +89,7 @@
     "verifyingWithHost": "Verifying source with yt-dlp: {host}...",
     "sourceConfirmed": "Source confirmed: {title}{duration}. You can now click Download.",
     "sourceReadableNotConfirmed": "Source is readable but NOT confirmed: {warning}. Do not download without checking.",
+    "sourceReadableNotConfirmedGeneric": "Source is readable but NOT confirmed: no reliable metadata. Do not download without checking.",
     "verificationFailed": "Verification failed: {error}",
     "downloadingCandidate": "Downloading with yt-dlp: {label} from {host}...",
     "downloadStarted": "Download started.",
@@ -135,7 +136,12 @@
     "untitled": "untitled",
     "duration": "Duration: {duration}",
     "extractor": "Source: {extractor}",
-    "size": "Size: {size}"
+    "size": "Size: {size}",
+    "warnings": {
+      "titleMissing": "yt-dlp did not return a normal video title",
+      "durationMissing": "yt-dlp did not return duration",
+      "technicalHls": "this looks like a technical HLS URL, not a video page"
+    }
   },
   "candidate": {
     "option": "{index}. {type} - video {video} - {variant}",

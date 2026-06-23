@@ -1211,7 +1211,7 @@ async function verifyCandidateByUrl(tabId, url) {
     tabState.verifiedStatus = candidate.check.confirmed
       ? statusMessage("status.sourceConfirmed", { title: candidate.check.title, duration: candidate.check.duration ? `, ${candidate.check.duration}` : "" })
       : candidate.check.ok
-        ? statusMessage("status.sourceReadableNotConfirmed", { warning: candidate.check.warning || "no normal title or duration" })
+        ? statusMessage("status.sourceReadableNotConfirmedGeneric")
       : statusMessage("status.verificationFailed", { error: candidate.check.error || "metadata unavailable" });
     tabState.status = tabState.verifiedStatus;
     notifyPopup(tabId);
@@ -1527,7 +1527,8 @@ function connectNative() {
       state.nativePort = null;
       state.nativeReady = false;
       if (chrome.runtime.lastError) {
-        state.lastNativeError = formatNativeHostError(chrome.runtime.lastError.message);
+        const nativeError = formatNativeHostError(chrome.runtime.lastError.message);
+        state.lastNativeError = nativeError || null;
       }
     });
     port.onMessage.addListener(message => {
@@ -1551,6 +1552,9 @@ function connectNative() {
  */
 function formatNativeHostError(error) {
   const message = String(error && error.message ? error.message : error || "");
+  if (/Native host has exited/i.test(message)) {
+    return "";
+  }
   if (/Specified native messaging host not found/i.test(message)) {
     return "Native host is not registered. Run install-native-host.ps1 with this extension ID, then click Reload in chrome://extensions.";
   }
@@ -1970,19 +1974,19 @@ function normalizeVerifyInfo(info) {
   const extractor = String(info.extractor || info.extractor_key || "").trim();
   const webpageUrl = String(info.webpage_url || info.original_url || "").trim();
   const size = formatApproxSize(info.filesize || info.filesize_approx || info.requested_downloads && estimateRequestedSize(info.requested_downloads));
-  const warnings = [];
-  if (!title || looksLikeUrlOrPath(title)) warnings.push("yt-dlp did not return a normal video title");
-  if (!duration) warnings.push("yt-dlp did not return duration");
-  if (/generic|hls|native/i.test(extractor) && !duration) warnings.push("this looks like a technical HLS URL, not a video page");
+  const warningCodes = [];
+  if (!title || looksLikeUrlOrPath(title)) warningCodes.push("titleMissing");
+  if (!duration) warningCodes.push("durationMissing");
+  if (/generic|hls|native/i.test(extractor) && !duration) warningCodes.push("technicalHls");
   return {
     ok: true,
-    confirmed: warnings.length === 0,
+    confirmed: warningCodes.length === 0,
     title,
     duration,
     extractor,
     webpageUrl,
     size,
-    warning: warnings.join("; ")
+    warningCodes
   };
 }
 

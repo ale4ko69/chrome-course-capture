@@ -89,6 +89,7 @@
     "verifyingWithHost": "Проверяю источник через yt-dlp: {host}...",
     "sourceConfirmed": "Источник подтвержден: {title}{duration}. Теперь можно нажать Скачать.",
     "sourceReadableNotConfirmed": "Источник читается, но НЕ подтвержден: {warning}. Не скачивай без проверки.",
+    "sourceReadableNotConfirmedGeneric": "Источник читается, но НЕ подтвержден: нет надежных метаданных. Не скачивай без проверки.",
     "verificationFailed": "Проверка не прошла: {error}",
     "downloadingCandidate": "Скачиваю через yt-dlp: {label} с {host}...",
     "downloadStarted": "Скачивание началось.",
@@ -135,7 +136,12 @@
     "untitled": "без названия",
     "duration": "Длительность: {duration}",
     "extractor": "Источник: {extractor}",
-    "size": "Размер: {size}"
+    "size": "Размер: {size}",
+    "warnings": {
+      "titleMissing": "yt-dlp не вернул нормальное название видео",
+      "durationMissing": "yt-dlp не вернул длительность",
+      "technicalHls": "это похоже на технический HLS URL, а не на страницу видео"
+    }
   },
   "candidate": {
     "option": "{index}. {type} - видео {video} - {variant}",
